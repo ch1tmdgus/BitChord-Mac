@@ -15,10 +15,17 @@ val appVersion: String = providers.gradleProperty("bitchord.version").orNull
 /** Which platform this build is *for*, which is the host unless told otherwise. */
 val hostIsWindows = System.getProperty("os.name").contains("Windows", ignoreCase = true)
 val hostIsLinux = System.getProperty("os.name").contains("Linux", ignoreCase = true)
+val hostIsMac = System.getProperty("os.name").contains("Mac", ignoreCase = true)
+/** macOS CPU: the host's unless told otherwise (-Pbitchord.macArch=arm64|x64). */
+val macArm: Boolean = (providers.gradleProperty("bitchord.macArch").orNull
+    ?: if (System.getProperty("os.arch").contains("aarch64", ignoreCase = true) ||
+        System.getProperty("os.arch").contains("arm64", ignoreCase = true)) "arm64" else "x64"
+    ).lowercase() == "arm64"
 val targetOs: String = (providers.gradleProperty("bitchord.target").orNull ?: when {
     hostIsWindows -> "windows"
     hostIsLinux -> "linux"
-    else -> error("BitChord desktop supports Linux and Windows only")
+    hostIsMac -> "macos"
+    else -> error("BitChord desktop supports Windows, Linux and macOS only")
 }).lowercase()
 
 // Native package managers require a numeric version. Windows EXE/MSI metadata must
@@ -69,7 +76,8 @@ val ffmpegVersion = "7.1.1-$javacppVersion"
 val nativeClassifier = when (targetOs) {
     "windows" -> "windows-x86_64"
     "linux" -> "linux-x86_64"
-    else -> error("BitChord desktop supports Linux and Windows only")
+    "macos" -> if (macArm) "macosx-arm64" else "macosx-x86_64"
+    else -> error("BitChord desktop supports Windows, Linux and macOS only")
 }
 private fun localProperty(name: String): String = rootProject.file("local.properties")
     .takeIf { it.isFile }
@@ -105,7 +113,11 @@ dependencies {
     implementation(project(":desktopRuntime"))
     // BotGuard, for the PoTokens YouTube's web clients need: the phone runs it in an Android
     // WebView, the desktop in JavaFX's (WebKit). Per-platform jars carry the natives.
-    val javafxClassifier = if (targetOs == "windows") "win" else "linux"
+    val javafxClassifier = when (targetOs) {
+        "windows" -> "win"
+        "macos" -> if (macArm) "mac-aarch64" else "mac"
+        else -> "linux"
+    }
     listOf("base", "graphics", "controls", "media", "web").forEach { module ->
         implementation("org.openjfx:javafx-$module:21.0.10:$javafxClassifier")
     }
@@ -140,7 +152,13 @@ dependencies {
     implementation(compose.components.resources)
     implementation(compose.materialIconsExtended)
     // The Skiko runtime rides in on this, and Skiko is per-platform.
-    implementation(if (targetOs == "windows") compose.desktop.windows_x64 else compose.desktop.linux_x64)
+    implementation(
+        when (targetOs) {
+            "windows" -> compose.desktop.windows_x64
+            "macos" -> if (macArm) compose.desktop.macos_arm64 else compose.desktop.macos_x64
+            else -> compose.desktop.linux_x64
+        },
+    )
 
     implementation("io.ktor:ktor-client-core:3.0.3")
     implementation("io.ktor:ktor-client-cio:3.0.3")
@@ -269,6 +287,10 @@ val buildAnalysisNative by tasks.registering {
     inputs.property("target", targetOs)
     outputs.dir(outputDir)
     onlyIf {
+        if (targetOs == "macos") {
+            logger.lifecycle("macOS build: skipping the Automix analyser (Windows/Linux only).")
+            return@onlyIf false
+        }
         val cmake = findOnPath("cmake")
         if (cmake == null) {
             logger.lifecycle(
@@ -527,6 +549,9 @@ compose.desktop {
     application {
         mainClass = composeMainClass
         jvmArgs("-Xms32m", "-Xmx512m")
+        if (targetOs == "macos") {
+            jvmArgs("-Dapple.awt.application.name=BitChord", "-Dapple.laf.useScreenMenuBar=true")
+        }
         jvmArgs(
             "-XX:+UseG1GC",
             "-XX:G1PeriodicGCInterval=10000",
@@ -559,6 +584,7 @@ compose.desktop {
                 TargetFormat.Msi,
                 TargetFormat.Deb,
                 TargetFormat.Rpm,
+                TargetFormat.Dmg,
             )
             packageName = "BitChord"
             packageVersion = nativePackageVersion
@@ -596,6 +622,17 @@ compose.desktop {
                 appCategory = "AudioVideo;Audio;Player"
                 debMaintainer = "85984486+AbhiTheModder@users.noreply.github.com"
                 rpmLicenseType = "GPL-3.0"
+            }
+
+            macOS {
+                bundleID = "com.music.bitchord"
+                dockName = "BitChord"
+                // jpackage on macOS needs an .icns; CI builds one from AppIcon.png.
+                providers.gradleProperty("bitchord.macIcon").orNull
+                    ?.let { iconFile.set(File(it)) }
+                // Mac minimum version must be >= 1.0.0.
+                packageVersion = nativePackageVersion
+                // Ad-hoc / unsigned build. See README-macos.md for first-launch steps.
             }
 
             windows {
