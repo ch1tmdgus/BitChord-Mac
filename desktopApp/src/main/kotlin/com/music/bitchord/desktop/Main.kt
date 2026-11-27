@@ -1,8 +1,9 @@
 package com.music.bitchord.desktop
 
 import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.ui.window.WindowDraggableArea
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
@@ -463,7 +464,29 @@ private fun desktopMain(
                         if (DesktopPlatform.isMac) {
                             // The title bar is transparent, so the strip behind the window buttons
                             // is the only place left to grab the window by.
-                            WindowDraggableArea(Modifier.fillMaxWidth().height(macTitleBarInset())) {}
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(macTitleBarInset())
+                                    .pointerInput(composeWindow) {
+                                        var pointerStart = java.awt.Point()
+                                        var windowStart = java.awt.Point()
+                                        detectDragGestures(
+                                            onDragStart = {
+                                                pointerStart = java.awt.MouseInfo.getPointerInfo().location
+                                                windowStart = composeWindow.location
+                                            },
+                                            onDrag = { change, _ ->
+                                                change.consume()
+                                                val pointer = java.awt.MouseInfo.getPointerInfo().location
+                                                composeWindow.setLocation(
+                                                    windowStart.x + pointer.x - pointerStart.x,
+                                                    windowStart.y + pointer.y - pointerStart.y,
+                                                )
+                                            },
+                                        )
+                                    },
+                            )
                         }
                     }
                 }
