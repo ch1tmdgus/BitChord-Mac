@@ -1,41 +1,38 @@
 <div align="center">
 
-<img width="1920" height="1080" alt="Dekstop (4)" src="https://github.com/user-attachments/assets/683653d1-e85f-41d0-8464-17a47c836abf" />
+<img width="1920" height="1080" alt="Dekstop (3)" src="https://github.com/user-attachments/assets/4ae53a09-b7e7-4dc2-b676-d348401ce8ff" />
 
 <br>
 <br>
 <br>
 
-<h1><img width="577" height="41" alt="BitChord Desktop Revived" src="https://github.com/user-attachments/assets/dc498e1b-f9c7-4d0d-a173-a4669c193e9c" /></h1>
-
-
+<h1><img width="577" height="41"
+     alt="BitChord Desktop Revived - YouTube Music Desktop App for Windows and Linux"
+     src="https://github.com/user-attachments/assets/dc498e1b-f9c7-4d0d-a173-a4669c193e9c" /></h1>
 
 
 **A desktop music experience, refined.**
 
-**BitChord Desktop - Revived** is an independent, community-maintained continuation of the original BitChord desktop app. It brings together a polished interface, immersive playback, and desktop-first controls for Windows, Linux, and macOS.
+**BitChord Desktop Revived** is a community-maintained BitChord PC and YouTube Music desktop app, continuing development of the original BitChord desktop experience. It brings together a polished interface, immersive playback, and desktop-first controls for Windows and Linux.
 
 
 ![Status](https://img.shields.io/badge/status-revival%20in%20progress-DAA520?style=flat-square)
-![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-6677AA?style=flat-square)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-6677AA?style=flat-square)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-555555?style=flat-square)](LICENSE)
 
-[**Downloads**](#downloads) · [**Features**](#features) · [**Build**](#building-from-source) · [**Roadmap**](#roadmap) · [**Credits**](#credits--upstream)
+[**Downloads**](#downloads) · [**Features**](#features) · [**Build**](#building-from-source) · [**Credits**](#credits--upstream)
 
 </div>
 
 > [!IMPORTANT]
-> **Independent community project.** This repository continues development of the original PC/desktop app after its discontinuation upstream. It is a fork of [BitChord by @kushagrasinghx](https://github.com/kushagrasinghx/BitChord), but it is **not an official continuation** and is not endorsed, maintained, or supported by the original creator or upstream maintainers. We respect the original work, preserve its attribution and license, and welcome community contributions.
-
-> [!NOTE]
-> **macOS support is experimental.** The macOS build is a community port. It is unsigned and has a few known limitations; see [macOS notes](#-macos-notes).
+> BitChord Desktop Revived is an unofficial fork of the original BitChord desktop app. I maintain and release Revived independently. I don’t collaborate with the teams behind other BitChord forks and am not affiliated with them. The credits in this README acknowledge specific code or ideas used in Revived. You can find builds I publish for Revived on the GitHub Releases page.
 
 
 
 
 <div align="center">
 
-<h2><a id="download"></a>✨ Highlights</h2>
+<h2 id="features">✨ Highlights</h2>
 
 
 - **Apple Music Experience** - A refined, modern interface featuring elegant frosted surfaces, adaptive blur, a Mica-inspired sidebar, smooth animations, and seamless light/dark themes.
@@ -44,27 +41,25 @@
 - **All Your Music, One Place** - Explore and stream through YouTube Music, access your Spotify library, discover new releases, and enjoy local music and offline downloads.
 - **Powerful Audio Features** - Fine-tune your listening experience with an equalizer, crossfade, experimental Automix, and advanced playback capabilities.
 - **Connected Listening** - Stay connected with Discord Rich Presence, Last.fm and ListenBrainz scrobbling, and integrated music services.
-- **Made for Desktop** - Designed for Windows, Linux, and macOS with native media controls, customizable interface options, and keyboard shortcuts like `Ctrl+K` for Quick Search and `Ctrl+/` for the shortcut guide.
+- **Made for Desktop** - Designed for Windows and Linux with native media controls, customizable interface options, and keyboard shortcuts like `Ctrl+K` for Quick Search and `Ctrl+/` for the shortcut guide.
 </div>
 
 <div align="center">
 
-<h2><a id="download"></a>Download</h2>
+<h2 id="downloads">Download BitChord Desktop Revived for Windows and Linux</h2>
 
-<a href="https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases" target="_blank" rel="noopener noreferrer"><img src="https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/main/yeyyeyyyyeyey-Artboard-1.svg" alt="Download for Android" height="55"/></a>
-<a href="https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases" target="_blank" rel="noopener noreferrer"><img src="https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/main/yeyyeyyyyeyey-Artboard-1-copy.svg" alt="Download for Android" height="55"/></a>
+<a href="https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases" target="_blank" rel="noopener noreferrer"><img src="https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/1.9.1/yeyyeyyyyeyey-Artboard-1.svg" alt="Download BitChord Desktop Revived for Windows and Linux" height="55"/></a>
+<a href="https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases" target="_blank" rel="noopener noreferrer"><img src="https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/main/yeyyeyyyyeyey-Artboard-1-copy.svg" alt="Download BitChord Desktop Revived for Windows and Linux" height="55"/></a>
 
 **Note:** If you're looking for the Android APK, please download it from the [original BitChord repository](https://github.com/kushagrasinghx/BitChord/releases). This fork is focused on the desktop experience.
 
-**macOS:** There is no prebuilt macOS release yet. Build a `.dmg` yourself with the **Build macOS (dmg)** GitHub Actions workflow (see [Build from source](#building-from-source)).
-
 
 </div>
 
 </div>
 <div align="center">
 
-<h2><a id="download"></a>⚙️ Build from source</h2>
+<h2 id="building-from-source">⚙️ Build from source</h2>
 
 </div>
 
@@ -82,47 +77,10 @@ Linux:
 ./gradlew :desktopApp:run
 ```
 
-macOS (Apple Silicon or Intel):
-
-```bash
-brew install --cask temurin@21   # Java 21, if you don't have it
-./gradlew :desktopApp:run        # run from source
-./gradlew :desktopApp:packageDmg # build a .dmg
-```
-
-The `.dmg` is written to `desktopApp/build/compose/binaries/main/dmg/`.
-
-**No Mac? Build it on GitHub Actions:**
-
-1. Fork this repository.
-2. Open the **Actions** tab and select **Build macOS (dmg)**.
-3. Click **Run workflow**.
-4. When it finishes, download `BitChord-macOS-arm64` (Apple Silicon: M1 and later) or `BitChord-macOS-x64` (Intel) from the run's **Artifacts**.
-
-<div align="center">
-
-<h2><a id="macos-notes"></a>🍎 macOS notes</h2>
-
 </div>
-
-**First launch.** The macOS build is not code-signed or notarized. After copying `BitChord.app` to `/Applications`, clear the quarantine flag:
-
-```bash
-xattr -cr /Applications/BitChord.app
-```
-
-If macOS still blocks it, right-click the app and choose **Open**.
-
-**Known limitations on macOS:**
-
-- Automix analyser is not available (its native build targets Windows and Linux only).
-- Windows-only integrations (SMTC, DPAPI, Mica) and the Linux-only MPRIS integration do not apply; there is no macOS Now Playing / media key integration yet.
-- Signing in by importing a browser session may not work on macOS.
-- Automatic updates are not supported; download a new build to update.
-
 <div align="center">
 
-<h2><a id="download"></a>📜 Credits and license</h2>
+<h2 id="credits--upstream">📜 Credits and license</h2>
 
 </div>
 
@@ -132,7 +90,7 @@ If macOS still blocks it, right-click the app and choose **Open**.
 
 Special thanks to **[@kushagrasinghx](https://github.com/kushagrasinghx)**, the original creator of [BitChord](https://github.com/kushagrasinghx/BitChord), and all upstream contributors for building the foundation that made this project possible.
 
-BitChord Desktop — Revived preserves the original project's core architecture while introducing desktop-focused improvements, the Visual Astra interface, and additional features for Windows, Linux, and macOS.
+BitChord Desktop — Revived preserves the original project's core architecture while introducing desktop-focused improvements, the Visual Astra interface, and additional features for Windows and Linux.
 
 ### Acknowledgements
 

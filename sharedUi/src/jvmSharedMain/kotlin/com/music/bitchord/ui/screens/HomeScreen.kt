@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.screens
 
+import com.music.bitchord.ui.icons.SfStyleIcons
+
 import com.music.bitchord.data.settings.LibraryViewType
 
 import com.music.bitchord.ui.components.trackArtSize
@@ -54,10 +56,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
@@ -72,14 +78,10 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Cached
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.LibraryMusic
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.Storage
 import com.music.bitchord.ui.icons.BitChordIcons
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.music.bitchord.data.model.CARD_ART_PX
 import com.music.bitchord.data.model.HEADER_ART_PX
 import com.music.bitchord.data.model.HomeShelf
@@ -615,12 +617,10 @@ fun CompactTrackRow(
             hovered = rowHovered,
         ) {
 
-            AsyncImage(
-                model = thumbnailUrl.artworkAt(ROW_ART_PX),
-                contentDescription = null,
+            RetryableHomeArtwork(
+                url = thumbnailUrl.artworkAt(ROW_ART_PX),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-
             )
             if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
         }
@@ -987,9 +987,8 @@ private fun HeroCard(
             mode = ArtworkHoverMode.DARKEN_ONLY,
             hovered = cardHovered,
         ) {
-            AsyncImage(
-                model = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
-                contentDescription = null,
+            RetryableHomeArtwork(
+                url = item.thumbnailUrl.artworkAt(HEADER_ART_PX),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -1108,11 +1107,10 @@ fun VideoShelfCard(
                 .thumbnailBorder(RoundedCornerShape(12.dp))
                 .background(placeholderColor),
         ) {
-            AsyncImage(
+            RetryableHomeArtwork(
                 // Video stills are not resizable googleusercontent art; the
                 // largest the row listed is already about card size.
-                model = item.thumbnailUrl,
-                contentDescription = null,
+                url = item.thumbnailUrl,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
@@ -1306,25 +1304,25 @@ internal fun ShelfCard(
             "local:all" -> ServiceCard(
                 colors = listOf(Color(0xFF134E5E), Color(0xFF71B280)),
                 trackKey = "local:all",
-                icon = Icons.Rounded.LibraryMusic,
+                icon = SfStyleIcons.LibraryMusic,
                 hovered = cardHovered,
             )
             "local:cache" -> ServiceCard(
                 colors = listOf(Color(0xFF42275A), Color(0xFF734B6D)),
                 trackKey = "local:cache",
-                icon = Icons.Rounded.Cached,
+                icon = SfStyleIcons.Cached,
                 hovered = cardHovered,
             )
             "local:webdav" -> ServiceCard(
                 colors = listOf(Color(0xFF3A1C71), Color(0xFFD76D77)),
                 trackKey = "local:webdav",
-                icon = Icons.Rounded.Folder,
+                icon = SfStyleIcons.Folder,
                 hovered = cardHovered,
             )
             "local:smb" -> ServiceCard(
                 colors = listOf(Color(0xFF0F2027), Color(0xFF2C5364)),
                 trackKey = "local:smb",
-                icon = Icons.Rounded.Storage,
+                icon = SfStyleIcons.Storage,
                 hovered = cardHovered,
             )
             else -> {
@@ -1341,10 +1339,9 @@ internal fun ShelfCard(
                         mode = ArtworkHoverMode.DARKEN_ONLY,
                         hovered = cardHovered,
                     ) {
-                        AsyncImage(
-                            model = if (item.isVideo) item.thumbnailUrl else item.thumbnailUrl.artworkAt(CARD_ART_PX),
-                            contentDescription = null,
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        RetryableHomeArtwork(
+                            url = if (item.isVideo) item.thumbnailUrl else item.thumbnailUrl.artworkAt(CARD_ART_PX),
+                            contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
                         )
                         if (isCurrent && isPlaying) SearchPlayingBars(Modifier.align(Alignment.Center))
@@ -1385,3 +1382,14 @@ internal fun ShelfCard(
         )
     }
 }
+
+@Composable
+private fun RetryableHomeArtwork(
+    url: String?,
+    modifier: Modifier = Modifier,
+    contentScale: ContentScale = ContentScale.Crop,
+) = com.music.bitchord.ui.components.RetryableAsyncImage(
+    url = url,
+    modifier = modifier,
+    contentScale = contentScale,
+)

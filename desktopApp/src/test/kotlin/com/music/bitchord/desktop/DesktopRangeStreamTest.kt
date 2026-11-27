@@ -2,10 +2,13 @@ package com.music.bitchord.desktop
 
 import com.sun.net.httpserver.HttpServer
 import java.net.InetSocketAddress
+import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -50,6 +53,63 @@ class DesktopRangeStreamTest {
         server.start()
         try {
             block("http://127.0.0.1:${server.address.port}/media", requested)
+        } finally {
+            server.stop(0)
+        }
+    }
+
+    @Test
+    fun `stalled response body retries the same range`() {
+        val requests = AtomicInteger()
+        val executor = Executors.newCachedThreadPool()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0).apply { this.executor = executor }
+        server.createContext("/audio") { exchange ->
+            try {
+                val attempt = requests.incrementAndGet()
+                val slice = body.copyOfRange(0, 4096)
+                exchange.responseHeaders.add("Content-Range", "bytes 0-4095/${body.size}")
+                exchange.sendResponseHeaders(206, slice.size.toLong())
+                if (attempt == 1) {
+                    exchange.responseBody.write(slice, 0, 1)
+                    exchange.responseBody.flush()
+                    Thread.sleep(3_000)
+                } else exchange.responseBody.use { it.write(slice) }
+            } catch (_: InterruptedException) {
+                Thread.currentThread().interrupt()
+            } finally {
+                exchange.close()
+            }
+        }
+        server.start()
+        try {
+            val stream = DesktopRangeStream("http://127.0.0.1:${server.address.port}/audio",
+                windowBytes = 4096, requestTimeoutMs = 800)
+            val buffer = ByteArray(16)
+            assertEquals(buffer.size, stream.read(buffer, buffer.size))
+            assertContentEquals(body.copyOf(16), buffer)
+            assertEquals(2, requests.get())
+            assertNull(stream.failure)
+        } finally {
+            server.stop(0)
+            executor.shutdownNow()
+        }
+    }
+
+    @Test
+    fun `persistent gateway errors are retained as read failures`() {
+        val requests = AtomicInteger()
+        val server = HttpServer.create(InetSocketAddress("127.0.0.1", 0), 0)
+        server.createContext("/audio") { exchange ->
+            requests.incrementAndGet()
+            exchange.sendResponseHeaders(503, -1)
+            exchange.close()
+        }
+        server.start()
+        try {
+            val stream = DesktopRangeStream("http://127.0.0.1:${server.address.port}/audio")
+            assertEquals(-1, stream.read(ByteArray(16), 16))
+            assertEquals(2, requests.get())
+            assertEquals("Audio range request returned HTTP 503", stream.failure?.message)
         } finally {
             server.stop(0)
         }
@@ -160,5 +220,47 @@ class DesktopRangeStreamTest {
             server.stop(0)
         }
         assertContentEquals(whole, seen.get())
+    }
+
+    @Test
+    fun `null cache streams bounded windows without disk reuse`() = serve { url, requested ->
+        val first = DesktopRangeStream(url, windowBytes = 32 * 1024, cache = null)
+        val buffer = ByteArray(16)
+        assertEquals(16, first.read(buffer, buffer.size))
+        assertContentEquals(body.copyOf(16), buffer)
+
+        val second = DesktopRangeStream(url, windowBytes = 32 * 1024, cache = null)
+        assertEquals(16, second.read(buffer, buffer.size))
+        assertEquals(2, requested.size)
+        assertTrue(requested.all { it.startsWith("bytes=") })
+    }
+
+    @Test
+    fun `prefetchNext reads across multiple windows cleanly`() = serve { url, requested ->
+        val stream = DesktopRangeStream(url, windowBytes = 32 * 1024, cache = null, prefetchNext = true)
+        try {
+            val collected = ArrayList<Byte>(body.size)
+            val buffer = ByteArray(16 * 1024)
+            while (true) {
+                val taken = stream.read(buffer, buffer.size)
+                if (taken <= 0) break
+                repeat(taken) { collected += buffer[it] }
+            }
+            assertContentEquals(body, collected.toByteArray())
+            assertTrue(requested.isNotEmpty())
+        } finally {
+            stream.close()
+        }
+    }
+
+    @Test
+    fun `null cache accepts 1 MiB video window`() {
+        val stream = DesktopRangeStream(
+            "http://127.0.0.1:1/video",
+            windowBytes = DesktopWindowedAvio.VIDEO_WINDOW_BYTES,
+            cache = null,
+            prefetchNext = true,
+        )
+        stream.close()
     }
 }

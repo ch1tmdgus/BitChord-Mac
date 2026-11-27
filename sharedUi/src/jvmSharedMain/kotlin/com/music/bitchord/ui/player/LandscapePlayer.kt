@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.icons.SfStyleIcons
+
 import com.music.bitchord.ui.components.ExplicitBadge
 
 import com.music.bitchord.sharedui.resources.*
@@ -26,9 +28,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Undo
-import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -223,6 +222,7 @@ internal fun LandscapeArtwork(
     sleeveShape: () -> Shape = { LandscapeArtShape },
     /** How much of the sleeve's shadow is cast, 1 at rest. */
     shadowFraction: () -> Float = { 1f },
+    artworkOverlay: @Composable BoxScope.() -> Unit = {},
     overlay: @Composable BoxScope.() -> Unit = {},
 ) {
     val casts = artLoaded || canvasRendered
@@ -273,6 +273,7 @@ internal fun LandscapeArtwork(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
+            artworkOverlay()
         }
         overlay()
     }
@@ -459,9 +460,11 @@ internal fun LandscapeTrackActions(song: Song, signedIn: Boolean, likeStatus: Li
             )) {
             val liked = likeStatus == LikeStatus.LIKE
             CircleGlyph(
-                // Desktop follows the current mobile star for the Liked
-                // playlist; retain the fork's old heart on Android.
+                // Use the supplied bin_star / bin_star_fill vectors on desktop.
+                // Preserve the existing icon selection on other platforms.
                 icon = when {
+                    desktop && liked -> SfStyleIcons.StarFilled
+                    desktop -> SfStyleIcons.Star
                     PlayerPlatform.host.mobileTextChrome && liked -> BitChordIcons.StarFilled
                     PlayerPlatform.host.mobileTextChrome -> BitChordIcons.Star
                     liked -> BitChordIcons.HeartFilled
@@ -477,7 +480,11 @@ internal fun LandscapeTrackActions(song: Song, signedIn: Boolean, likeStatus: Li
             Spacer(Modifier.width(8.dp))
         }
         CircleGlyph(
-            icon = if (showRevertCue) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.MoreHoriz,
+            icon = when {
+                showRevertCue -> SfStyleIcons.Undo
+                desktop -> SfStyleIcons.MoreHorizontalRounded
+                else -> SfStyleIcons.MoreHorizontal
+            },
             contentDescription = stringResource(Res.string.more),
             onClick = onOpenMenu,
         )

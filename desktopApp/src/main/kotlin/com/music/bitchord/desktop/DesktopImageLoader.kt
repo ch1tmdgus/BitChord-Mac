@@ -5,6 +5,8 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.memory.MemoryCache
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import com.music.bitchord.data.Http
 import okio.Path.Companion.toOkioPath
 
 /**
@@ -18,8 +20,8 @@ import okio.Path.Companion.toOkioPath
  * that re-visiting screens does not require network re-fetches.
  */
 internal object DesktopImageLoader {
-    const val MAX_MEMORY_CACHE_BYTES = 32L * 1024 * 1024 // 32 MiB
-    const val MAX_DISK_CACHE_BYTES = 100L * 1024 * 1024   // 100 MiB
+    const val MAX_MEMORY_CACHE_BYTES = 12L * 1024 * 1024 // 12 MiB
+    const val MAX_DISK_CACHE_BYTES = 64L * 1024 * 1024    // 64 MiB
 
     fun install() {
         SingletonImageLoader.setSafe { context ->
@@ -30,6 +32,9 @@ internal object DesktopImageLoader {
     fun createImageLoader(context: PlatformContext): ImageLoader {
         val cacheDir = DesktopMediaCache.directory.resolve("coil_cache")
         return ImageLoader.Builder(context)
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { Http.imageClient }))
+            }
             .memoryCache {
                 MemoryCache.Builder()
                     .maxSizeBytes(MAX_MEMORY_CACHE_BYTES)

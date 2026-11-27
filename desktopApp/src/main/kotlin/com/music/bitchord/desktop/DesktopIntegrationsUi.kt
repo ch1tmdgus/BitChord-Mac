@@ -1,6 +1,10 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -16,8 +20,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -149,48 +151,55 @@ internal fun DesktopSpotifyCanvasDialog(onDismiss: () -> Unit, onSaved: (String)
     }
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
-        DialogHeading(
-            title = "Spotify account",
-            message = signInError ?: if (token.isNotBlank()) {
-                "Connected. You can switch accounts or update your saved Spotify session here."
-            } else {
-                "Connect your Spotify account to browse playlists and Liked Songs. Playback uses YouTube Music."
-            },
-            isError = signInError != null,
-        )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
-            horizontalArrangement = Arrangement.Start,
+        val page = LocalDesktopPanelIsPage.current
+        if (page) DesktopSettingsPageTitle(DesktopSettingsPage.SPOTIFY_CANVAS.title)
+        Column(
+            Modifier.fillMaxWidth()
+                .then(if (page) Modifier.weight(1f).verticalScroll(rememberScrollState()) else Modifier),
         ) {
-            TextButton(onClick = ::signIn, enabled = !signingIn) {
-                Text(
-                    if (signingIn) "Waiting for Spotify sign-in…" else if (token.isNotBlank()) "Switch Spotify account" else "Sign in to Spotify",
-                    color = DesktopSecondary,
-                    style = MaterialTheme.typography.bodySmall,
-                )
+            DialogHeading(
+                title = "Spotify account".takeUnless { page },
+                message = signInError ?: if (token.isNotBlank()) {
+                    "Connected. You can switch accounts or update your saved Spotify session here."
+                } else {
+                    "Connect your Spotify account to browse playlists and Liked Songs. Playback uses YouTube Music."
+                },
+                isError = signInError != null,
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                TextButton(onClick = ::signIn, enabled = !signingIn) {
+                    Text(
+                        if (signingIn) "Waiting for Spotify sign-in…" else if (token.isNotBlank()) "Switch Spotify account" else "Sign in to Spotify",
+                        color = DesktopSecondary,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
             }
-        }
-        Text(
-            "Or connect manually: sign in at open.spotify.com, open Developer Tools → Application → Cookies, then paste the value of the sp_dc cookie below.",
-            modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = DesktopSecondary,
-        )
-        Spacer(Modifier.height(12.dp))
-        DialogField(
-            value = token,
-            onValueChange = { token = it },
-            placeholder = DesktopStrings["spdc_token", "sp_dc token"],
-            isPassword = true,
-            onSubmit = ::save,
-            modifier = Modifier.focusRequester(focus),
-        )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
-            horizontalArrangement = Arrangement.Start,
-        ) {
-            TextButton(onClick = { DesktopExternalLinks.open("https://open.spotify.com/") }) {
-                Text(DesktopStrings["d_open_spotify", "Open Spotify"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+            Text(
+                "Or connect manually: sign in at open.spotify.com, open Developer Tools → Application → Cookies, then paste the value of the sp_dc cookie below.",
+                modifier = Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 4.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = DesktopSecondary,
+            )
+            Spacer(Modifier.height(12.dp))
+            DialogField(
+                value = token,
+                onValueChange = { token = it },
+                placeholder = DesktopStrings["spdc_token", "sp_dc token"],
+                isPassword = true,
+                onSubmit = ::save,
+                modifier = Modifier.focusRequester(focus),
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp)),
+                horizontalArrangement = Arrangement.Start,
+            ) {
+                TextButton(onClick = { DesktopExternalLinks.open("https://open.spotify.com/") }) {
+                    Text(DesktopStrings["d_open_spotify", "Open Spotify"], color = DesktopSecondary, style = MaterialTheme.typography.bodySmall)
+                }
             }
         }
         DialogActions(
@@ -253,12 +262,12 @@ internal fun DesktopListenBrainzTokenDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun DialogHeading(title: String, message: String, isError: Boolean = false) {
+private fun DialogHeading(title: String?, message: String, isError: Boolean = false) {
     Column(
-        Modifier.fillMaxWidth().padding(horizontal = panelInset(22.dp), vertical = 18.dp),
-        horizontalAlignment = if (LocalDesktopPanelIsPage.current) Alignment.Start else Alignment.CenterHorizontally,
+        Modifier.fillMaxWidth().padding(start = panelInset(22.dp), end = panelInset(22.dp), top = 20.dp, bottom = 14.dp),
+        horizontalAlignment = Alignment.Start,
     ) {
-        Text(
+        if (title != null) Text(
             title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.SemiBold,
@@ -266,10 +275,10 @@ private fun DialogHeading(title: String, message: String, isError: Boolean = fal
         )
         Text(
             message,
-            modifier = Modifier.padding(top = 5.dp),
+            modifier = Modifier.padding(top = 6.dp),
             style = MaterialTheme.typography.bodySmall,
             color = if (isError) DesktopDestructive else DesktopSecondary,
-            textAlign = if (LocalDesktopPanelIsPage.current) TextAlign.Start else TextAlign.Center,
+            textAlign = TextAlign.Start,
         )
     }
 }
@@ -317,7 +326,7 @@ private fun DialogField(
                 Modifier.size(26.dp).clip(CircleShape).clickable { onValueChange("") },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.Close, DesktopStrings["clear", "Clear"], tint = DesktopSecondary, modifier = Modifier.size(16.dp))
+                Icon(DesktopIcons.Actions.Close, DesktopStrings["clear", "Clear"], tint = DesktopSecondary, modifier = Modifier.size(16.dp))
             }
         }
     }

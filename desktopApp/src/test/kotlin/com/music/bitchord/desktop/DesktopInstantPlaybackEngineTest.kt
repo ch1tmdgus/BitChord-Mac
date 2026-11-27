@@ -7,6 +7,7 @@ import java.nio.ByteOrder
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.delay
 import kotlin.test.*
 
@@ -33,20 +34,31 @@ class DesktopInstantPlaybackEngineTest {
     }
     private class Output(private val acceleration: Int = 1) : DesktopAudioOutput {
         override var format = DesktopPcmFormat(44100, 2, 2)
-        override var gain = 1f
+        @Volatile override var gain = 1f
         @Volatile override var isOpen = false
         override val deviceName = "test collector"
         override val bufferBytes = 0
         val rates = CopyOnWriteArrayList<Int>()
         @Volatile var writes = 0
-        private var frames = 0L
+        @Volatile private var frames = 0L
+        @Volatile var peak = 0f
+        @Volatile var silentFrames = 0L
         override fun isUsingSelection(id: String) = isOpen
         override fun open(requested: DesktopPcmFormat): Result<DesktopPcmFormat> {
             format = requested; isOpen = true; rates += requested.sampleRate
             return Result.success(requested)
         }
         override fun write(samples: FloatArray, count: Int): Int {
-            assertTrue(samples.take(count).all { it.isFinite() })
+            var maximum = peak
+            var silentSamples = 0
+            for (index in 0 until count) {
+                val sample = kotlin.math.abs(samples[index])
+                check(sample.isFinite()) { "Invalid PCM at frame $frames" }
+                maximum = maxOf(maximum, sample)
+                if (sample < 0.00001f) silentSamples++
+            }
+            peak = maximum
+            silentFrames += (silentSamples / format.channels).toLong()
             Thread.sleep((count.toLong() * 1000 / format.channels / format.sampleRate / acceleration).coerceAtLeast(1))
             frames += count / format.channels; writes++
             return count * format.bytesPerSample
@@ -68,6 +80,63 @@ class DesktopInstantPlaybackEngineTest {
         resolve: suspend (Song) -> DesktopStream): DesktopPlaybackEngine =
         DesktopPlaybackEngine(ended, handoff, output, analysis) { song, _, _, _ -> Result.success(resolve(song)).map { DesktopLiveResolution(it) } }
             .also { engines += it }
+
+    @Test fun `mute keeps the selected volume through play pause track and output changes`() {
+        val stream = tone()
+        val output = Output()
+        val engine = engine(output) { stream }
+        engine.setVolume(0.35f)
+        engine.load(song("first"))
+        waitFor("first PCM") { output.writes > 0 }
+
+        engine.toggleMute()
+        assertTrue(engine.muted.value)
+        assertEquals(0f, output.gain)
+        assertEquals(0.35f, engine.state.value.volume)
+        engine.toggleMute()
+        assertFalse(engine.muted.value)
+        assertEquals(0.35f, output.gain)
+
+        engine.pause()
+        waitFor("paused playback") { !engine.state.value.isPlaying }
+        engine.toggleMute()
+        engine.setVolume(0.62f)
+        assertEquals(0.62f, engine.state.value.volume)
+        assertEquals(0f, output.gain)
+
+        engine.load(song("second"), playWhenReady = false)
+        waitFor("second track loaded") {
+            engine.state.value.song?.videoId == "second" && !engine.state.value.isLoading
+        }
+        engine.play()
+        waitFor("resumed playback") { engine.state.value.isPlaying }
+        engine.setOutputPrecision("FLOAT_32")
+        waitFor("output reopened") { output.format.isFloat }
+        assertTrue(engine.muted.value)
+        assertEquals(0f, output.gain)
+        engine.toggleMute()
+        assertFalse(engine.muted.value)
+        assertEquals(0.62f, output.gain)
+    }
+
+    @Test fun `resolution timeout clears loading and Play retries the failed track`() {
+        val output = Output()
+        val stream = tone()
+        val attempts = AtomicInteger()
+        val engine = DesktopPlaybackEngine({}, {}, output, sourceTimeoutMs = 200) { _, _, _, _ ->
+            if (attempts.incrementAndGet() == 1) delay(10_000)
+            Result.success(DesktopLiveResolution(stream))
+        }.also { engines += it }
+        engine.load(song("stalled"))
+        waitFor("resolution timeout") { engine.state.value.error != null }
+        assertFalse(engine.state.value.isLoading)
+        assertTrue(engine.state.value.error.orEmpty().contains("Timed out"))
+        engine.togglePlayPause()
+        waitFor("retried track PCM") { output.writes > 0 }
+        assertEquals(2, attempts.get())
+        assertEquals("stalled", engine.state.value.song?.videoId)
+        assertNull(engine.state.value.error)
+    }
 
     @Test fun `five rapid skips cancel an obsolete resolution and only latest reaches output`() {
         val stream = tone()
@@ -360,4 +429,68 @@ class DesktopInstantPlaybackEngineTest {
         waitFor("sixth track still playing") { player.state.value.song?.videoId == order.last() && player.state.value.positionMs > 1000 }
         assertNull(player.state.value.error)
     }
+    @Test fun `AutoMix sustained playback benchmark`() {
+        val seconds = System.getenv("BITCHORD_AUTOMIX_SOAK_SECONDS")?.toLongOrNull()
+        org.junit.Assume.assumeTrue("Set BITCHORD_AUTOMIX_SOAK_SECONDS to run the soak", seconds != null)
+        val requested = requireNotNull(seconds).coerceAtLeast(1)
+        val acceleration = System.getenv("BITCHORD_AUTOMIX_SOAK_SPEED")?.toIntOrNull()?.coerceAtLeast(1) ?: 1
+        val stream = tone(seconds = 55)
+        val output = Output(acceleration)
+        val handoffs = CopyOnWriteArrayList<String>()
+        val ended = java.util.concurrent.atomic.AtomicBoolean()
+        lateinit var player: DesktopPlaybackEngine
+        fun numbered(index: Int) = song("soak-$index")
+        player = engine(output, ended = { ended.set(true) }, handoff = { selected ->
+            handoffs += selected.videoId
+            val incoming = selected.videoId.substringAfterLast('-').toInt()
+            player.prepareNext(numbered(incoming + 1))
+        }, analysis = ::measured) { stream }
+        player.setAutomixEnabled(true)
+        player.load(numbered(0))
+        waitFor("first sustained playback block") { output.framesPlayed() > 0 }
+        player.prepareNext(numbered(1))
+
+        val startedAt = System.nanoTime()
+        val initialFrames = output.framesPlayed()
+        var lastFrames = initialFrames
+        var lastReport = 0L
+        val targetFrames = initialFrames + requested * output.format.sampleRate
+        val pid = ProcessHandle.current().pid()
+        val processCpu = java.lang.management.ManagementFactory.getOperatingSystemMXBean()
+            as com.sun.management.OperatingSystemMXBean
+        val startCpu = processCpu.processCpuTime
+        fun report() {
+            val elapsed = (System.nanoTime() - startedAt) / 1e9
+            val status = File("/proc/$pid/status")
+            val rss = if (status.isFile) status.readLines().filter {
+                it.startsWith("VmRSS:") || it.startsWith("VmHWM:")
+            }.joinToString(" ").replace(Regex("""\s+"""), " ") else "RSS unavailable"
+            val memory = java.lang.management.ManagementFactory.getMemoryMXBean()
+            val heap = memory.heapMemoryUsage.used
+            val mediaSeconds = (output.framesPlayed() - initialFrames).toDouble() / output.format.sampleRate
+            val cpu = (processCpu.processCpuTime - startCpu) / (elapsed * 1e7)
+            println("AUTOMIX_SOAK wall_s=$elapsed media_s=$mediaSeconds handoffs=${handoffs.size} " +
+                "heap_bytes=$heap cpu_pct=$cpu peak=${output.peak} silent_frames=${output.silentFrames} $rss")
+        }
+        while (output.framesPlayed() < targetFrames) {
+            Thread.sleep(1000)
+            assertFalse(ended.get(), "The queue stopped at ${handoffs.lastOrNull()}")
+            assertNull(player.state.value.error)
+            val played = output.framesPlayed()
+            assertTrue(played > lastFrames, "No PCM was written in the last second")
+            lastFrames = played
+            val elapsed = (System.nanoTime() - startedAt) / 1_000_000_000
+            if (elapsed - lastReport >= 15) {
+                report()
+                lastReport = elapsed
+            }
+            assertTrue(elapsed < requested * 3 + 30, "PCM clock failed to advance at the requested pace")
+        }
+        report()
+        assertEquals((1..handoffs.size).map { "soak-$it" }, handoffs.toList())
+        assertTrue(handoffs.size >= requested / 55 - 1)
+        assertTrue(output.peak in 0.1f..1f)
+        assertTrue(output.silentFrames < output.framesPlayed() / 100)
+    }
+
 }

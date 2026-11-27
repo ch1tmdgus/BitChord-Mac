@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -15,8 +17,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,25 +41,26 @@ internal fun DesktopKeyboardShortcutsModal(onDismiss: () -> Unit) {
                 .widthIn(max = 540.dp)
                 .fillMaxWidth()
                 .heightIn(max = (availableHeight - 32.dp).coerceAtLeast(0.dp)),
+            glass = true,
         ) {
             Column(Modifier.fillMaxWidth()) {
                 Row(
-                    Modifier.fillMaxWidth().padding(start = 22.dp, end = 10.dp, top = 14.dp),
+                    Modifier.fillMaxWidth().padding(start = 22.dp, end = 12.dp, top = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         "Keyboard Shortcuts",
                         modifier = Modifier.weight(1f),
                         color = DesktopForeground,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
                     )
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Rounded.Close, contentDescription = "Close keyboard shortcuts", tint = DesktopSecondary)
+                        Icon(DesktopIcons.Actions.Close, contentDescription = "Close keyboard shortcuts", tint = DesktopSecondary)
                     }
                 }
                 Row(
-                    Modifier.padding(start = 22.dp, end = 22.dp, top = 6.dp, bottom = 16.dp),
+                    Modifier.padding(start = 22.dp, end = 22.dp, top = 4.dp, bottom = 14.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -72,17 +73,16 @@ internal fun DesktopKeyboardShortcutsModal(onDismiss: () -> Unit) {
                 LazyColumn(
                     Modifier.fillMaxWidth().heightIn(max = (availableHeight - 160.dp).coerceAtLeast(0.dp)),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(
-                        start = 22.dp, end = 22.dp, top = 12.dp, bottom = 20.dp,
+                        start = 22.dp, end = 22.dp, top = 10.dp, bottom = 20.dp,
                     ),
                 ) {
                     DesktopShortcutCategory.entries.forEach { category ->
                         item(key = "category:${category.name}") {
                             Text(
-                                category.label,
-                                modifier = Modifier.padding(top = 12.dp, bottom = 8.dp),
-                                color = DesktopForeground,
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
+                                category.label.uppercase(),
+                                modifier = Modifier.padding(top = 14.dp, bottom = 6.dp),
+                                color = DesktopSecondary,
+                                style = MaterialTheme.typography.labelSmall,
                             )
                         }
                         items(

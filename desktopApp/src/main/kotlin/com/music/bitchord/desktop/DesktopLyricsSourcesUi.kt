@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import com.music.bitchord.ui.screens.desktopTopScrollFade
 
 import androidx.compose.foundation.background
@@ -15,6 +17,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -23,8 +26,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,12 +67,14 @@ internal fun DesktopLyricsSourcesDialog(
 ) {
     val sourcesScrollState = rememberScrollState()
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 420) {
+        val page = LocalDesktopPanelIsPage.current
+        if (page) DesktopSettingsPageTitle(DesktopSettingsPage.LYRICS_SOURCES.title)
         Column(
             Modifier.fillMaxWidth().padding(horizontal = panelInset(20.dp), vertical = 18.dp),
             // A card centres its heading; a page starts it on the gutter its rows start on.
             horizontalAlignment = if (LocalDesktopPanelIsPage.current) Alignment.Start else Alignment.CenterHorizontally,
         ) {
-            Text(
+            if (!page) Text(
                 DesktopStrings["lyrics_sources", "Lyrics sources"],
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -100,16 +103,29 @@ internal fun DesktopLyricsSourcesDialog(
                 .desktopTopScrollFade(sourcesScrollState)
                 .verticalScroll(sourcesScrollState),
         ) {
-            ReorderableSourceList(order, enabled, onReorder, onToggle)
+            if (page) DesktopSettingsGroup { ReorderableSourceList(order, enabled, onReorder, onToggle) }
+            else ReorderableSourceList(order, enabled, onReorder, onToggle)
         }
         DesktopCardRule()
         // Not a source to ask or not: a rule about what to do once one has answered.
-        CheckableRow(
-            title = DesktopStrings["prioritize_syllable_lyrics", "Prioritize syllable lyrics"],
-            subtitle = DesktopStrings["prioritize_syllable_lyrics_subtitle", "Keep searching past a line-synced match for word-by-word lyrics"],
-            checked = prioritizeSyllables,
-            onClick = { onPrioritizeSyllables(!prioritizeSyllables) },
-        )
+        if (page) {
+            Spacer(Modifier.height(10.dp))
+            DesktopSettingsGroup {
+                DesktopSettingsRow(
+                    DesktopStrings["prioritize_syllable_lyrics", "Prioritize syllable lyrics"],
+                    DesktopStrings["prioritize_syllable_lyrics_subtitle", "Keep searching past a line-synced match for word-by-word lyrics"],
+                    checked = prioritizeSyllables,
+                    onClick = { onPrioritizeSyllables(!prioritizeSyllables) },
+                )
+            }
+        } else {
+            CheckableRow(
+                title = DesktopStrings["prioritize_syllable_lyrics", "Prioritize syllable lyrics"],
+                subtitle = DesktopStrings["prioritize_syllable_lyrics_subtitle", "Keep searching past a line-synced match for word-by-word lyrics"],
+                checked = prioritizeSyllables,
+                onClick = { onPrioritizeSyllables(!prioritizeSyllables) },
+            )
+        }
         DesktopCardRule()
         Row(Modifier.fillMaxWidth().padding(horizontal = panelInset(12.dp), vertical = 6.dp)) {
             TextButton(onClick = onReset) { Text(DesktopStrings["reset_to_default", "Reset to default"], color = DesktopSecondary) }
@@ -173,7 +189,10 @@ private fun ReorderableSourceList(
                                 if (dragging) DesktopForeground.copy(alpha = 0.08f) else Color.Transparent,
                             ),
                     ) {
-                        if (slot > 0) DesktopCardRule()
+                        if (slot > 0) {
+                            if (LocalDesktopPanelIsPage.current) DesktopSettingsDivider(insetForIcon = true)
+                            else DesktopCardRule()
+                        }
                         CheckableRow(
                             title = source.name,
                             subtitle = source.detail,
@@ -185,7 +204,7 @@ private fun ReorderableSourceList(
                             onClick = { onToggle(name) },
                             leading = {
                                 Icon(
-                                    Icons.Rounded.DragHandle,
+                                    DesktopIcons.Actions.DragHandle,
                                     DesktopStrings["drag_to_reorder", "Drag to reorder"],
                                     tint = DesktopSecondary,
                                     modifier = Modifier
@@ -281,7 +300,7 @@ private fun CheckableRow(
             .background(if (washed) DesktopRowHover else Color.Transparent)
             .hoverable(interaction, enabled = enabled)
             .desktopRowClickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = panelInset(18.dp), vertical = 9.dp),
+            .padding(horizontal = if (LocalDesktopPanelIsPage.current) 16.dp else 18.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         leading?.let {

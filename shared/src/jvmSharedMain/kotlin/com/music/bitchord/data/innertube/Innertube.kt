@@ -42,6 +42,7 @@ import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import java.io.IOException
+import java.net.SocketTimeoutException
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.Locale
@@ -92,6 +93,8 @@ object Innertube {
     private const val MUSIC_BASE = "https://music.youtube.com/youtubei/v1"
     private const val MUSIC_ORIGIN = "https://music.youtube.com"
     private const val YOUTUBE_ORIGIN = "https://www.youtube.com"
+    private const val WEB_CLIENT_VERSION = "2.20260708.00.00"
+    private const val WEB_CLIENT_ID = "1"
 
     /**
      * Fallback WEB_REMIX version, used until [SessionScope] reads the live one
@@ -417,6 +420,11 @@ object Innertube {
      */
     private suspend fun fetchSessionScope(session: String): SessionScope? {
         val html = client.get("$MUSIC_ORIGIN/") {
+            timeout {
+                requestTimeoutMillis = 10_000
+                connectTimeoutMillis = 8_000
+                socketTimeoutMillis = 8_000
+            }
             header("User-Agent", WEB_USER_AGENT)
             header("Accept-Language", acceptLanguageHeader)
             header("Cookie", session)
@@ -477,9 +485,9 @@ object Innertube {
         // failure it raises reads as "Socket timeout has expired […]
         // socket_timeout=unknown" — Ktor reporting a limit it was never told.
         install(HttpTimeout) {
-            requestTimeoutMillis = 30_000
-            connectTimeoutMillis = 15_000
-            socketTimeoutMillis = 20_000
+            requestTimeoutMillis = 18_000
+            connectTimeoutMillis = 8_000
+            socketTimeoutMillis = 12_000
         }
         expectSuccess = true
     }
@@ -507,17 +515,10 @@ object Innertube {
             try {
                 return block()
             } catch (e: HttpRequestTimeoutException) {
-                // Not weather, and not worth repeating. A timeout is this app's
-                // own decision that the request had long enough — so trying it
-                // again cannot learn anything the first attempt didn't, and the
-                // cost is multiplied rather than shared: [HttpRequestTimeoutException]
-                // is an [IOException], so before this branch existed every timed-out
-                // `player` call was quietly attempted three times. That turned a
-                // six-second ceiling into a nineteen-second one on a walk of
-                // seven clients, which is worse than the unbounded call the
-                // ceiling was added to prevent. Give up on this client and let
-                // the caller move to the next one.
                 Log.d(TAG, "not retrying, request timed out: ${e.message}")
+                throw e
+            } catch (e: SocketTimeoutException) {
+                Log.d(TAG, "not retrying, socket timed out: ${e.message}")
                 throw e
             } catch (e: IOException) {
                 Log.d(TAG, "retrying: ${e.message}")
@@ -530,8 +531,8 @@ object Innertube {
 
     // ---- Public API ---------------------------------------------------------
 
-    suspend fun browse(browseId: String, params: String? = null): JsonObject =
-        postMusic("browse") {
+    suspend fun browse(browseId: String, params: String? = null, language: String? = null): JsonObject =
+        postMusic("browse", language = language) {
             put("browseId", browseId)
             params?.let { put("params", it) }
         }
@@ -608,6 +609,33 @@ object Innertube {
         put("videoId", videoId)
         put("playlistId", "RDAMVM$videoId")
         put("isAudioOnly", true)
+    }
+
+    /** Fetch the public watch-page replay curve as an anonymous web client, without adding to watch history. */
+    suspend fun webNext(videoId: String): JsonObject = withRetry(attempts = 2) {
+        client.post("$YOUTUBE_ORIGIN/youtubei/v1/next") {
+            contentType(ContentType.Application.Json)
+            parameter("prettyPrint", "false")
+            header("User-Agent", WEB_USER_AGENT)
+            header("Origin", YOUTUBE_ORIGIN)
+            header("Referer", "$YOUTUBE_ORIGIN/")
+            header("X-YouTube-Client-Name", WEB_CLIENT_ID)
+            header("X-YouTube-Client-Version", WEB_CLIENT_VERSION)
+            header("Accept-Language", acceptLanguageHeader)
+            setBody(
+                buildJsonObject {
+                    putJsonObject("context") {
+                        putJsonObject("client") {
+                            put("clientName", "WEB")
+                            put("clientVersion", WEB_CLIENT_VERSION)
+                            put("hl", currentLanguage)
+                            put("gl", currentRegion)
+                        }
+                    }
+                    put("videoId", videoId)
+                },
+            )
+        }.body<JsonObject>()
     }
 
     /**
@@ -1111,8 +1139,10 @@ object Innertube {
     private suspend fun postMusic(
         endpoint: String,
         query: Map<String, String> = emptyMap(),
+        language: String? = null,
         bodyExtras: JsonObjectBuilder.() -> Unit,
     ): JsonObject {
+        val hl = language ?: currentLanguage
         // This is the common authenticated request path: Home, Library,
         // likes, playlists, account menus and all their continuations pass
         // through it. Waiting here makes restoration process-wide rather than
@@ -1124,8 +1154,8 @@ object Innertube {
             client.post("$MUSIC_BASE/$endpoint") {
                 contentType(ContentType.Application.Json)
                 parameter("prettyPrint", "false")
-                parameter("hl", currentLanguage)
-                header("Accept-Language", acceptLanguageHeader)
+                parameter("hl", hl)
+                header("Accept-Language", language ?: acceptLanguageHeader)
                 query.forEach { (key, value) -> parameter(key, value) }
                 header("X-Origin", MUSIC_ORIGIN)
                 header("Origin", MUSIC_ORIGIN)
@@ -1151,7 +1181,7 @@ object Innertube {
                             putJsonObject("client") {
                                 put("clientName", "WEB_REMIX")
                                 put("clientVersion", clientVersion)
-                                put("hl", currentLanguage)
+                                put("hl", hl)
                                 put("gl", "US")
                                 visitorData?.let { put("visitorData", it) }
                             }

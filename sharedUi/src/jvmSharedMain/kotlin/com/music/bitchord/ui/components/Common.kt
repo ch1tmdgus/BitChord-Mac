@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.components
 
+import com.music.bitchord.ui.icons.SfStyleIcons
+
 import org.jetbrains.compose.resources.painterResource
 import androidx.compose.foundation.Image
 import androidx.compose.animation.core.spring
@@ -32,14 +34,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PlaylistAdd
-import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SwipeToDismissBox
@@ -83,6 +77,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -99,6 +100,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import coil3.compose.LocalPlatformContext
+import coil3.request.ImageRequest
 import com.music.bitchord.data.model.ROW_ART_PX
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.data.model.isMatchPending
@@ -158,7 +161,7 @@ fun ArtworkHover(
         )
         if (mode == ArtworkHoverMode.DARKEN_AND_PLAY) {
             Icon(
-                imageVector = Icons.Rounded.PlayArrow,
+                imageVector = SfStyleIcons.Play,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier
@@ -528,7 +531,7 @@ private fun QueueSwipeBackground(swipeState: SwipeToDismissBoxState) {
 private fun QueueSwipeLabel(playNext: Boolean) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            if (playNext) Icons.Rounded.PlaylistPlay else Icons.Rounded.PlaylistAdd,
+            if (playNext) SfStyleIcons.PlaylistPlay else SfStyleIcons.PlaylistAdd,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(20.dp),
@@ -603,7 +606,7 @@ private fun SongRowContent(
                     SearchPlayingBars()
                 } else if (isCurrent) {
                     Icon(
-                        imageVector = if (isPlaying) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow,
+                        imageVector = if (isPlaying) SfStyleIcons.GraphicEq else SfStyleIcons.Play,
                         contentDescription = stringResource(Res.string.now_playing),
                         tint = activeTint,
                         modifier = Modifier.size(22.dp),
@@ -626,12 +629,13 @@ private fun SongRowContent(
                 mode = ArtworkHoverMode.DARKEN_AND_PLAY,
                 hovered = rowHovered,
             ) {
-                AsyncImage(
-                    model = com.music.bitchord.ui.player.rememberRemoteArtworkUrl(song)?.artworkAt(ROW_ART_PX),
+                val remoteUrl = com.music.bitchord.ui.player.rememberRemoteArtworkUrl(song)
+                RetryableAsyncImage(
+                    url = remoteUrl?.artworkAt(ROW_ART_PX),
+                    fallbackUrl = remoteUrl,
                     contentDescription = null,
                     contentScale = if (landscapeArtwork) ContentScale.Crop else ContentScale.Fit,
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
-
                 )
                 if (searchPlayingStyle && isCurrent && isPlaying) {
                     SearchPlayingBars(Modifier.align(Alignment.Center))
@@ -666,7 +670,7 @@ private fun SongRowContent(
         if (selected) {
             Spacer(Modifier.width(8.dp))
             Icon(
-                Icons.Rounded.CheckCircle,
+                SfStyleIcons.CheckCircle,
                 contentDescription = stringResource(Res.string.selected),
                 tint = activeTint,
                 modifier = Modifier.size(20.dp),
@@ -675,7 +679,7 @@ private fun SongRowContent(
         if (isCurrent && trackNumber == null && !searchPlayingStyle) {
             Spacer(Modifier.width(8.dp))
             Icon(
-                imageVector = if (isPlaying) Icons.Rounded.GraphicEq else Icons.Rounded.PlayArrow,
+                imageVector = if (isPlaying) SfStyleIcons.GraphicEq else SfStyleIcons.Play,
                 contentDescription = stringResource(Res.string.now_playing),
                 tint = activeTint,
                 modifier = Modifier.size(20.dp),
@@ -729,7 +733,7 @@ fun RowMoreButton(
         contentAlignment = Alignment.Center,
     ) {
         Icon(
-            Icons.Rounded.MoreVert,
+            SfStyleIcons.MoreVertical,
             contentDescription = stringResource(Res.string.more),
             tint = tint,
             modifier = Modifier.size(iconSize),
@@ -816,7 +820,7 @@ fun DownloadedBadge(videoId: String, tint: Color, modifier: Modifier = Modifier)
     if (videoId !in AppUi.host.downloadedIds()) return
     Spacer(Modifier.width(8.dp))
     Icon(
-        Icons.Rounded.DownloadDone,
+        SfStyleIcons.DownloadDone,
         contentDescription = stringResource(Res.string.downloaded),
         tint = tint,
         modifier = modifier.size(16.dp),
@@ -1021,3 +1025,55 @@ fun PillTextField(
 
 /** Public list accent retained for Android and desktop callers. */
 val PlayingAccent = Color(0xFFFB4A62)
+
+private const val ARTWORK_MAX_RETRIES = 3
+private val ARTWORK_RETRY_DELAYS_MS = longArrayOf(800L, 2_000L, 4_000L)
+
+/**
+ * Bounded retry wrapper around Coil's [AsyncImage] so transient CDN/network
+ * failures recover automatically instead of leaving a permanently dark tile.
+ */
+@Composable
+fun RetryableAsyncImage(
+    url: String?,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null,
+    contentScale: ContentScale = ContentScale.Crop,
+    fallbackUrl: String? = null,
+) {
+    val context = LocalPlatformContext.current
+    var attempt by remember(url, fallbackUrl) { mutableIntStateOf(0) }
+    var failed by remember(url, fallbackUrl) { mutableStateOf(false) }
+
+    LaunchedEffect(url, fallbackUrl, failed, attempt) {
+        if ((url.isNullOrBlank() && fallbackUrl.isNullOrBlank()) || !failed || attempt >= ARTWORK_MAX_RETRIES) {
+            return@LaunchedEffect
+        }
+        delay(ARTWORK_RETRY_DELAYS_MS[attempt])
+        failed = false
+        attempt++
+    }
+
+    val activeUrl = if (attempt >= ARTWORK_MAX_RETRIES && !fallbackUrl.isNullOrBlank() && fallbackUrl != url) {
+        fallbackUrl
+    } else {
+        url ?: fallbackUrl
+    }
+
+    val model = remember(activeUrl, attempt, context) {
+        if (activeUrl.isNullOrBlank()) null
+        else ImageRequest.Builder(context)
+            .data(activeUrl)
+            .apply { if (attempt > 0) memoryCacheKeyExtra("retry", attempt.toString()) }
+            .build()
+    }
+
+    AsyncImage(
+        model = model,
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        onSuccess = { failed = false },
+        onError = { failed = true },
+        modifier = modifier,
+    )
+}

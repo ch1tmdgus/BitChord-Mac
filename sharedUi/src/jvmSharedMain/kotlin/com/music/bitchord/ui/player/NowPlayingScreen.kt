@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.icons.SfStyleIcons
+
 import com.music.bitchord.data.settings.PlayerTheme
 
 import androidx.compose.animation.animateColorAsState
@@ -44,6 +46,7 @@ import androidx.compose.foundation.gestures.verticalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.PaddingValues
@@ -64,13 +67,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Undo
-import androidx.compose.material.icons.rounded.FastForward
-import androidx.compose.material.icons.rounded.FastRewind
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.IosShare
-import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -750,6 +746,8 @@ fun NowPlayingScreen(
      */
     windowHeight: Dp,
     modifier: Modifier = Modifier,
+    bestPartStartMs: Long? = null,
+    onBestPartSeek: (Long) -> Unit = onSeek,
 ) {
     val density = LocalDensity.current
     val haptics = rememberHaptics()
@@ -828,6 +826,28 @@ fun NowPlayingScreen(
     // track" check lives.
     val spotifyCanvasAutoHide by PlayerSettings.spotifyCanvasAutoHide.collectAsStateWithLifecycle()
     val mixing by PlayerSettings.smartMixInProgress.collectAsStateWithLifecycle()
+    var bestPartHeard by remember(song.videoId, song.queueEntryId) { mutableStateOf(false) }
+    val bestPartAhead by remember(bestPartStartMs, position) {
+        derivedStateOf { bestPartStartMs != null && position.positionMs < bestPartStartMs - 400L }
+    }
+    val atBestPart by remember(bestPartStartMs, position) {
+        derivedStateOf {
+            bestPartStartMs != null &&
+                position.positionMs in (bestPartStartMs - 400L)..(bestPartStartMs + 20_000L)
+        }
+    }
+    LaunchedEffect(song.videoId, song.queueEntryId, atBestPart) {
+        if (atBestPart) bestPartHeard = true
+    }
+    val showBestPart = bestPartAhead && !bestPartHeard && !controlsLocked && !mixing &&
+        !isLoading && !audioVersionSwitching
+    val seekBestPart = {
+        val start = bestPartStartMs
+        if (showBestPart && start != null && !bestPartHeard) {
+            bestPartHeard = true
+            onBestPartSeek(start)
+        }
+    }
     // A music video plays its own picture where the sleeve is — see
     // [MusicVideoSurface] — and takes the place of any animated cover.
     val videoMode = videoEnabled && showsMusicVideo(song)
@@ -1798,11 +1818,14 @@ fun NowPlayingScreen(
     // scoped to the player and avoid extra graphics layers when Reduce Blur is on
     // or a full-screen music video is the backdrop.
     val chrome = mobileTextChrome && !reduceBlur && !videoMode
+    val reducePlayerMotion by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
     CompositionLocalProvider(
         LocalPlayerTint provides playerTint,
         LocalPlayerChrome provides chrome,
+        LocalChromeSoftened provides (landscape && playerBackdropTheme != PlayerTheme.SIMPLE && !spotifyCanvasPresentation),
+        LocalPlayerTransportMotionActive provides (!dockMoving && !queueDragging),
+        LocalPlayerReduceMotion provides reducePlayerMotion,
     ) {
-        val reducePlayerMotion by PlayerSettings.reduceAnimation.collectAsStateWithLifecycle()
         val landscapeTrackHeader: @Composable (Boolean, Boolean) -> Unit = { compact, active ->
             LandscapeTrackHeader(
                 compact = compact,
@@ -2063,21 +2086,24 @@ fun NowPlayingScreen(
                         // each theme its own backdrop, using the existing cached
                         // low-resolution CPU blur for Simple (and the Default fallback).
                         val backdropModifier = backgroundModifier.hazeSource(playerHaze)
-                        when (playerBackdropTheme) {
-                            PlayerTheme.DEFAULT ->
-                                if (artMesh != null) {
-                                    ArtworkMeshBackdrop(
-                                        mesh = artMesh,
-                                        seam = 0.dp,
-                                        modifier = backdropModifier,
-                                    )
-                                } else fullArtworkBlurContent(backdropModifier)
-                            PlayerTheme.LEGACY -> MeshGradientBackground(
-                                palette = rememberArtworkColors(remoteArt, canvasFrame),
-                                trackKey = song.videoId,
-                                modifier = backdropModifier,
-                            )
-                            PlayerTheme.SIMPLE -> fullArtworkBlurContent(backdropModifier)
+                        Box(backdropModifier) {
+                            when (playerBackdropTheme) {
+                                PlayerTheme.DEFAULT ->
+                                    if (artMesh != null) {
+                                        ArtworkMeshBackdrop(
+                                            mesh = artMesh,
+                                            seam = 0.dp,
+                                            modifier = Modifier.matchParentSize(),
+                                        )
+                                    } else fullArtworkBlurContent(Modifier.matchParentSize())
+                                PlayerTheme.LEGACY -> MeshGradientBackground(
+                                    palette = rememberArtworkColors(remoteArt, canvasFrame),
+                                    trackKey = song.videoId,
+                                    modifier = Modifier.matchParentSize(),
+                                )
+                                PlayerTheme.SIMPLE -> fullArtworkBlurContent(Modifier.matchParentSize())
+                            }
+                            PlayerPlatform.host.AutoMixAmbient(song, playerBackdropTheme, Modifier.matchParentSize())
                         }
                     },
                     artwork = { artworkModifier ->
@@ -2097,6 +2123,9 @@ fun NowPlayingScreen(
                             // Let go of on the way to the mini player, whose
                             // cover sits flat in its bar.
                             shadowFraction = dockT,
+                            artworkOverlay = {
+                                if (!dockMoving) PlayerPlatform.host.AutoMixArtwork(song, canvasRendered, Modifier.matchParentSize())
+                            },
                             modifier = artworkModifier
                                 .then(
                                     if (dock != null) {
@@ -2150,15 +2179,21 @@ fun NowPlayingScreen(
                         ) {
                             // The stats belong to the player, not to the sleeve, so
                             // they leave it along with the rest of the player.
-                            SleeveNerdStats(
-                                song = song,
+                            Column(
                                 modifier = Modifier
                                     .align(Alignment.BottomCenter)
                                     .padding(horizontal = 10.dp, vertical = 8.dp)
                                     // Faded with the player rather than flown with
                                     // the sleeve: the cover in the bar has none.
                                     .graphicsLayer { alpha = if (panelOpen) 0f else dockFade() },
-                            )
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(6.dp),
+                            ) {
+                                SleeveNerdStats(song)
+                                if (showBestPart && !panelOpen && !docking()) {
+                                    BestPartButton(onClick = seekBestPart)
+                                }
+                            }
                         }
                     },
                     actions = playerActions,
@@ -2309,6 +2344,10 @@ fun NowPlayingScreen(
                 fullArtworkBlurContent(
                     Modifier.graphicsLayer { alpha = fullArtworkBackdropAlpha },
                 )
+
+                if (!videoMode && !dockMoving) {
+                    PlayerPlatform.host.AutoMixAmbient(song, playerBackdropTheme, Modifier.fillMaxSize())
+                }
 
                 // Mount once, behind the controls. A known portrait aspect changes the
                 // invisible view to full-player bounds before its first frame is shown.
@@ -3337,6 +3376,9 @@ fun NowPlayingScreen(
                                     )
                                 }
                             }
+                            if (!dockMoving && !collapsePastHalf) {
+                                PlayerPlatform.host.AutoMixArtwork(song, canvasRendered, Modifier.matchParentSize())
+                            }
                         }
 
                         // The card's slot: where the sleeve sits as a card, whether or
@@ -3394,15 +3436,21 @@ fun NowPlayingScreen(
                             // fade away with Spotify's lower control deck rather than
                             // following the compact credits to the bottom edge.
                             WhileShown({ !collapsePastHalf }) {
-                                SleeveNerdStats(
-                                    song = song,
+                                Column(
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
                                         .padding(horizontal = 10.dp, vertical = 8.dp)
                                         .graphicsLayer {
                                             alpha = (1f - p() * 2f) * spotifyChromeAlpha
                                         },
-                                )
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                                ) {
+                                    SleeveNerdStats(song)
+                                    if (showBestPart && !videoMode && !queueOpen && !lyricsOpen && !docking()) {
+                                        BestPartButton(onClick = seekBestPart)
+                                    }
+                                }
                             }
                         }
 
@@ -3485,7 +3533,7 @@ fun NowPlayingScreen(
                             val enabled = if (showNext) hasNext else hasPrevious
                             val hintAlpha = if (enabled) 0.85f else 0.3f
                             Icon(
-                                imageVector = if (showNext) Icons.Rounded.FastForward else Icons.Rounded.FastRewind,
+                                imageVector = if (showNext) SfStyleIcons.FastForward else SfStyleIcons.FastRewind,
                                 contentDescription = null,
                                 tint = Color.White,
                                 modifier = Modifier
@@ -3662,10 +3710,10 @@ fun NowPlayingScreen(
                                 !lyrics.isNullOrEmpty() && (!lyricsControlsOpen || lyricPicker.picking)
                             CircleGlyph(
                                 icon = when {
-                                    showRevertCue -> Icons.AutoMirrored.Rounded.Undo
-                                    lyricsShareGlyphVisible && lyricPicker.picking -> Icons.Rounded.Close
-                                    lyricsShareGlyphVisible -> Icons.Rounded.IosShare
-                                    else -> Icons.Rounded.MoreHoriz
+                                    showRevertCue -> SfStyleIcons.Undo
+                                    lyricsShareGlyphVisible && lyricPicker.picking -> SfStyleIcons.Close
+                                    lyricsShareGlyphVisible -> SfStyleIcons.Share
+                                    else -> SfStyleIcons.MoreHorizontal
                                 },
                                 contentDescription = stringResource(
                                     when {

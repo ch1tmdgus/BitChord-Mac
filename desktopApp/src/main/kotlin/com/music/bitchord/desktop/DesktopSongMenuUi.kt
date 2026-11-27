@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import com.music.bitchord.ui.screens.desktopTopScrollFade
 
 import androidx.compose.animation.animateColorAsState
@@ -25,34 +27,16 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
-import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
-import androidx.compose.material.icons.automirrored.rounded.QueueMusic
-import androidx.compose.material.icons.automirrored.rounded.Undo
-import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Bedtime
-import androidx.compose.material.icons.rounded.Delete
-import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.PlayArrow
-import androidx.compose.material.icons.rounded.PushPin
-import androidx.compose.material.icons.rounded.DownloadDone
-import androidx.compose.material.icons.rounded.HighQuality
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Radio
-import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.ThumbDown
-import androidx.compose.material.icons.rounded.ThumbDownOffAlt
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,10 +44,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -84,6 +72,9 @@ import androidx.compose.ui.window.PopupProperties
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.ui.icons.BitChordIcons
+
+/** Carries the origin of a row menu without changing the player or other page menus. */
+internal data class DesktopPageSongMenuTarget(val song: Song, val fromHome: Boolean = false)
 
 /** The verbs the song menu needs that the player does not otherwise know about. */
 internal data class DesktopSongActions(
@@ -147,6 +138,9 @@ internal fun DesktopSongMenuFor(
     onRevertToOriginal: (() -> Unit)?,
     onUpgradeQuality: (() -> Unit)?,
     onDismiss: () -> Unit,
+    miniPlayerActions: DesktopMiniPlayerMenuActions? = null,
+    onAutomixOverview: (() -> Unit)? = null,
+    showSleepTimer: Boolean = true,
 ) {
     val close = onDismiss
     DesktopSongMenu(
@@ -181,6 +175,9 @@ internal fun DesktopSongMenuFor(
         onSwitchMediaVersion = actions.onSwitchMediaVersion?.let { { it(); close() } },
         onDismiss = close,
         onRemoveHistory = actions.onRemoveHistory?.let { remove -> { remove(song); close() } },
+        miniPlayerActions = miniPlayerActions,
+        onAutomixOverview = onAutomixOverview?.let { { it(); close() } },
+        showSleepTimer = showSleepTimer,
     )
 }
 
@@ -214,88 +211,140 @@ internal fun DesktopSongMenu(
     onDismiss: () -> Unit,
     onRemoveHistory: (() -> Unit)? = null,
     onSwitchMediaVersion: (() -> Unit)? = null,
+    miniPlayerActions: DesktopMiniPlayerMenuActions? = null,
+    onAutomixOverview: (() -> Unit)? = null,
+    showSleepTimer: Boolean = true,
 ) {
-    var pickingSleepTimer by remember { mutableStateOf(false) }
-    var customTimer by remember { mutableStateOf(false) }
-    var customMinutes by remember { mutableStateOf("30") }
-    if (customTimer) androidx.compose.material3.AlertDialog(
+    var pickingSleepTimer by remember(song.videoId, showSleepTimer) { mutableStateOf(false) }
+    var customTimer by remember(song.videoId, showSleepTimer) { mutableStateOf(false) }
+    var customMinutes by remember(song.videoId, showSleepTimer) { mutableStateOf("30") }
+    if (showSleepTimer && customTimer) Dialog(
         onDismissRequest = { customTimer = false },
-        title = { androidx.compose.material3.Text("Custom sleep timer") },
-        text = { androidx.compose.material3.OutlinedTextField(
-            value = customMinutes, onValueChange = { customMinutes = it },
-            label = { androidx.compose.material3.Text("Minutes (5–720)") }, singleLine = true,
-            isError = DesktopSleepTimer.customMinutes(customMinutes) == null,
-        ) },
-        confirmButton = { androidx.compose.material3.TextButton(
-            enabled = DesktopSleepTimer.customMinutes(customMinutes) != null,
-            onClick = { DesktopSleepTimer.customMinutes(customMinutes)?.let { onSleepTimer(it) }; customTimer = false },
-        ) { androidx.compose.material3.Text("Start") } },
-        dismissButton = { androidx.compose.material3.TextButton(onClick = { customTimer = false }) { androidx.compose.material3.Text("Cancel") } },
-    )
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        val focusRequester = remember { FocusRequester() }
+        LaunchedEffect(Unit) { runCatching { focusRequester.requestFocus() } }
+        val parsed = DesktopSleepTimer.customMinutes(customMinutes)
+        val submit = {
+            parsed?.let {
+                onSleepTimer(it)
+                customTimer = false
+            }
+        }
+        DesktopDialogFrame(onDismiss = { customTimer = false }, maxWidth = 380.dp) {
+            DesktopDialogHeading("Custom sleep timer", "Minutes (5–720)")
+            Spacer(Modifier.height(16.dp))
+            DesktopDialogField(
+                value = customMinutes,
+                onValueChange = { customMinutes = it },
+                placeholder = "Minutes (5–720)",
+                onSubmit = { submit() },
+                modifier = Modifier.focusRequester(focusRequester),
+            )
+            if (customMinutes.isNotBlank() && parsed == null) {
+                DesktopDialogError("Enter a number between 5 and 720.")
+            }
+            Spacer(Modifier.height(6.dp))
+            DesktopDialogButtons(
+                confirmLabel = "Start",
+                confirmEnabled = parsed != null,
+                onConfirm = { submit() },
+                onDismiss = { customTimer = false },
+            )
+        }
+    }
     val liked = likeStatus == LikeStatus.LIKE
     val disliked = likeStatus == LikeStatus.DISLIKE
     var showingSongInfo by remember(song.videoId) { mutableStateOf(false) }
-    if (showingSongInfo) androidx.compose.material3.AlertDialog(
+    if (showingSongInfo) Dialog(
         onDismissRequest = { showingSongInfo = false },
-        title = { Text("Song Info") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(song.title, fontWeight = FontWeight.Bold)
-                Text(song.artist, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                song.albumName?.takeIf(String::isNotBlank)?.let {
-                    Text("Album: $it", color = MaterialTheme.colorScheme.onSurfaceVariant)
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        DesktopDialogFrame(onDismiss = { showingSongInfo = false }, maxWidth = 420.dp) {
+            DesktopDialogHeading("Song Info")
+            Column(Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 12.dp, bottom = 14.dp)) {
+                Text(
+                    song.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DesktopForeground,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    song.artist,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = DesktopSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            HorizontalDivider(thickness = 0.5.dp, color = DesktopCardEdge)
+            song.albumName?.takeIf(String::isNotBlank)?.let { album ->
+                SongInfoRow(label = "Album", value = album)
+                HorizontalDivider(thickness = 0.5.dp, color = DesktopCardEdge)
+            }
+            SongInfoRow(label = "Type", value = if (song.isVideo) "Music video" else "Song")
+            HorizontalDivider(thickness = 0.5.dp, color = DesktopCardEdge)
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextButton(onClick = { showingSongInfo = false }) {
+                    Text(DesktopStrings["done", "Done"], color = DesktopAccent)
                 }
-                Text(if (song.isVideo) "Music video" else "Song", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-        },
-        confirmButton = {
-            androidx.compose.material3.TextButton(onClick = { showingSongInfo = false }) {
-                Text("Done")
-            }
-        },
-    )
+        }
+    }
     // A local file or a finished download has no YouTube identity behind it to rate, queue into a
     // playlist, fetch again, or share a link for.
     val isOffline = song.localUri != null
 
     DesktopMenuSurface(onDismiss = onDismiss) {
-        if (pickingSleepTimer) {
+        if (showSleepTimer && pickingSleepTimer) {
             DesktopMenuHeader("Sleep timer") { pickingSleepTimer = false }
             DesktopMenuDivider()
             DesktopSleepTimer.presets.forEach { minutes ->
                 DesktopMenuRow(
-                    icon = DesktopPhoneMenuIcons.SleepTimer,
+                    icon = DesktopIcons.Player.SleepTimer,
                     label = "$minutes minutes",
                     selected = sleepTimerMinutes == minutes && !sleepAfterTrack,
                 ) { onSleepTimer(minutes) }
             }
-            DesktopMenuRow(DesktopPhoneMenuIcons.SleepTimer, "Custom duration…") { customTimer = true }
+            DesktopMenuRow(DesktopIcons.Player.SleepTimer, "Custom duration…") { customTimer = true }
             DesktopMenuRow(
-                icon = DesktopPhoneMenuIcons.SleepTimer,
+                icon = DesktopIcons.Player.SleepTimer,
                 label = DesktopStrings["d_end_of_this_track", "End of this track"],
                 selected = sleepAfterTrack,
                 onClick = onSleepAfterTrack,
             )
             if (sleepTimerMinutes != null || sleepAfterTrack) {
                 DesktopMenuDivider()
-                DesktopMenuRow(DesktopPhoneMenuIcons.SleepTimer, DesktopStrings["d_turn_off", "Turn off"]) { onSleepTimer(null) }
+                DesktopMenuRow(DesktopIcons.Player.SleepTimer, DesktopStrings["d_turn_off", "Turn off"]) { onSleepTimer(null) }
             }
             return@DesktopMenuSurface
         }
 
+        miniPlayerActions?.takeIf { it.hasOverflow }?.let { actions ->
+            DesktopMiniPlayerMenuItems(actions, onDismiss)
+            DesktopMenuDivider()
+        }
+
         onRemoveHistory?.let { remove ->
-            DesktopMenuRow(DesktopPhoneMenuIcons.SleepTimer, "Remove from history", onClick = remove)
+            DesktopMenuRow(DesktopIcons.Player.SleepTimer, "Remove from history", onClick = remove)
             DesktopMenuDivider()
         }
         onSwitchMediaVersion?.let { switch ->
-            DesktopMenuRow(Icons.Rounded.HighQuality,
+            DesktopMenuRow(DesktopIcons.Audio.HighQuality,
                 if (song.isVideo) "Switch to audio" else "Watch music video", onClick = switch)
             DesktopMenuDivider()
         }
         // The two are never both offered.
         (onRevertToOriginal ?: onUpgradeQuality)?.let { action ->
             DesktopMenuRow(
-                icon = if (onRevertToOriginal != null) Icons.AutoMirrored.Rounded.Undo else Icons.Rounded.HighQuality,
+                icon = if (onRevertToOriginal != null) DesktopIcons.Actions.Undo else DesktopIcons.Audio.HighQuality,
                 label = if (onRevertToOriginal != null) "Revert to original" else "Upgrade quality",
                 onClick = action,
             )
@@ -309,45 +358,45 @@ internal fun DesktopSongMenu(
                 horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 if (signedIn) {
                     DesktopMenuQuickAction(
-                        if (liked) BitChordIcons.StarFilled else BitChordIcons.Star,
+                        if (liked) DesktopIcons.Player.LikeFilled else DesktopIcons.Player.Like,
                         "Like", liked, Modifier.weight(1f), onToggleLike)
                     DesktopMenuQuickAction(
-                        if (disliked) DesktopPhoneMenuIcons.BrokenHeartFilled else DesktopPhoneMenuIcons.BrokenHeart,
+                        if (disliked) DesktopIcons.Player.DislikeFilled else DesktopIcons.Player.Dislike,
                         "Dislike", disliked, Modifier.weight(1f), onToggleDislike)
                 }
                 DesktopMenuQuickAction(
-                    DesktopPhoneMenuIcons.Share, "Share", false, Modifier.weight(1f), onShare)
+                    DesktopIcons.Actions.Share, "Share", false, Modifier.weight(1f), onShare)
             }
             DesktopMenuDivider()
         }
         run {
-            DesktopMenuRow(DesktopPhoneMenuIcons.AddToPlaylist, DesktopStrings["add_to_playlist", "Add to playlist"], onClick = onAddToPlaylist)
+            DesktopMenuRow(DesktopIcons.Actions.AddToPlaylist, DesktopStrings["add_to_playlist", "Add to playlist"], onClick = onAddToPlaylist)
         }
         if (signedIn || !isOffline) DesktopMenuDivider()
 
-        DesktopMenuRow(DesktopPhoneMenuIcons.Radio, DesktopStrings["start_radio", "Start radio"], onClick = onStartRadio)
-        DesktopMenuRow(DesktopPhoneMenuIcons.PlayNext, DesktopStrings["play_next", "Play next"], onClick = onPlayNext)
-        DesktopMenuRow(DesktopPhoneMenuIcons.AddToQueue, DesktopStrings["add_to_queue", "Add to queue"], onClick = onAddToQueue)
+        DesktopMenuRow(DesktopIcons.Player.StartRadio, DesktopStrings["start_radio", "Start radio"], onClick = onStartRadio)
+        DesktopMenuRow(DesktopIcons.Actions.PlayNext, DesktopStrings["play_next", "Play next"], onClick = onPlayNext)
+        DesktopMenuRow(DesktopIcons.Actions.PlayLast, DesktopStrings["add_to_queue", "Add to queue"], onClick = onAddToQueue)
 
         // A saved copy is offered its own way out whatever the track is playing from — a download
         // being played *is* a local file, and hiding the row there left no way to remove it.
         // Only starting a new download needs a YouTube identity behind it.
         when {
             downloadInProgress -> DesktopMenuRow(
-                icon = DesktopPhoneMenuIcons.Download,
+                icon = DesktopIcons.Actions.Download,
                 label = DesktopStrings["cancel_download", "Cancel download"],
                 busy = true,
                 onClick = onDownload,
             )
             downloaded -> DesktopMenuRow(
-                icon = Icons.Rounded.DownloadDone,
+                icon = DesktopIcons.Actions.Downloaded,
                 label = DesktopStrings["saved_to_downloads", "Saved to Downloads"],
                 tint = DesktopAccent,
                 value = DesktopStrings["delete", "Delete"],
                 onClick = onRemoveDownload,
             )
             !isOffline -> DesktopMenuRow(
-                icon = DesktopPhoneMenuIcons.Download,
+                icon = DesktopIcons.Actions.Download,
                 label = DesktopStrings["download", "Download"],
                 onClick = onDownload,
             )
@@ -357,25 +406,87 @@ internal fun DesktopSongMenu(
         if ((albumId != null && onOpenAlbum != null) || (artistId != null && onOpenArtist != null)) {
             DesktopMenuDivider()
             if (albumId != null && onOpenAlbum != null) {
-                DesktopMenuRow(DesktopPhoneMenuIcons.Album, DesktopStrings["open_album", "Open album"], description = song.albumName) { onOpenAlbum(albumId) }
+                DesktopMenuRow(DesktopIcons.Actions.ViewAlbum, DesktopStrings["open_album", "Open album"], description = song.albumName) { onOpenAlbum(albumId) }
             }
             if (artistId != null && onOpenArtist != null) {
-                DesktopMenuRow(DesktopPhoneMenuIcons.Artist, DesktopStrings["open_artist", "Open artist"], description = song.artist) { onOpenArtist(artistId) }
+                DesktopMenuRow(DesktopIcons.Actions.ViewArtist, DesktopStrings["open_artist", "Open artist"], description = song.artist) { onOpenArtist(artistId) }
             }
         }
 
         DesktopMenuDivider()
         DesktopMenuRow(
-            icon = DesktopPhoneMenuIcons.Info,
+            icon = DesktopIcons.Status.Info,
             label = "Song Info",
             onClick = { showingSongInfo = true },
         )
-        DesktopMenuDivider()
+        if (showSleepTimer || onAutomixOverview != null) {
+            DesktopMenuDivider()
+        }
+        if (showSleepTimer) {
+            DesktopMenuRow(
+                icon = DesktopIcons.Player.SleepTimer,
+                label = DesktopStrings["sleep_timer", "Sleep timer"],
+                value = sleepTimerLabel(sleepTimerMinutes, sleepAfterTrack),
+            ) { pickingSleepTimer = true }
+        }
+        if (onAutomixOverview != null) {
+            DesktopMenuRow(
+                icon = DesktopIcons.Audio.GraphicEq,
+                label = DesktopStrings["automix_overview", "Automix overview"],
+                onClick = onAutomixOverview,
+            )
+        }
+    }
+}
+
+/** Keeps the floating player's desktop tools available without crowding its compact action row. */
+@Composable
+internal fun DesktopMiniPlayerMenuItems(
+    actions: DesktopMiniPlayerMenuActions,
+    onDismiss: () -> Unit,
+) {
+    fun dispatch(action: () -> Unit) {
+        onDismiss()
+        action()
+    }
+
+    if (actions.transportInMenu) {
         DesktopMenuRow(
-            icon = DesktopPhoneMenuIcons.SleepTimer,
-            label = DesktopStrings["sleep_timer", "Sleep timer"],
-            value = sleepTimerLabel(sleepTimerMinutes, sleepAfterTrack),
-        ) { pickingSleepTimer = true }
+            icon = DesktopIcons.Player.Shuffle,
+            label = "Shuffle",
+            selected = actions.shuffle,
+        ) { dispatch { actions.onShuffleChange(!actions.shuffle) } }
+        DesktopMenuRow(
+            icon = if (actions.repeatMode == DesktopRepeatMode.ONE) DesktopIcons.Player.RepeatOne else DesktopIcons.Player.Repeat,
+            label = "Repeat ${actions.repeatMode.label()}",
+            selected = actions.repeatMode != DesktopRepeatMode.OFF,
+        ) { dispatch { actions.onRepeatModeChange(actions.repeatMode.next()) } }
+        if (actions.panelsInMenu || actions.secondaryInMenu) DesktopMenuDivider()
+    }
+    if (actions.panelsInMenu) {
+        DesktopMenuRow(
+            icon = DesktopIcons.Player.Lyrics,
+            label = "Lyrics",
+            selected = actions.sidePanel == DesktopSidePanel.LYRICS,
+        ) { dispatch(actions.onOpenLyrics) }
+        DesktopMenuRow(
+            icon = DesktopIcons.Player.QueueMusic,
+            label = "Queue",
+            selected = actions.sidePanel == DesktopSidePanel.QUEUE,
+        ) { dispatch(actions.onOpenQueue) }
+        if (actions.secondaryInMenu) DesktopMenuDivider()
+    }
+    if (actions.secondaryInMenu) {
+        DesktopMenuRow(
+            icon = DesktopIcons.Window.PictureInPicture,
+            label = "Picture in picture",
+            enabled = actions.enabled,
+        ) { dispatch(actions.onOpenPip) }
+        DesktopMenuRow(
+            icon = DesktopIcons.Status.Info,
+            label = "Now playing details",
+            selected = actions.sidePanel == DesktopSidePanel.DETAILS,
+        ) { dispatch(actions.onOpenDetails) }
     }
 }
 
@@ -415,24 +526,24 @@ internal fun DesktopCollectionContextMenu(
         DesktopMenuRow(BitChordIcons.Shuffle, "Shuffle") { onDismiss(); actions.onShuffle() }
         DesktopMenuRow(BitChordIcons.Search, "Find in playlist") { onDismiss(); actions.onFind() }
         actions.onStartMix?.let { mix ->
-            DesktopMenuRow(DesktopPhoneMenuIcons.Radio, "Start mix") { onDismiss(); mix() }
+            DesktopMenuRow(DesktopIcons.Player.StartRadio, "Start mix") { onDismiss(); mix() }
         }
         DesktopMenuDivider()
         actions.onPlayNext?.let { next ->
-            DesktopMenuRow(DesktopPhoneMenuIcons.PlayNext, "Play next") { onDismiss(); next() }
+            DesktopMenuRow(DesktopIcons.Actions.PlayNext, "Play next") { onDismiss(); next() }
         }
         actions.onAddToQueue?.let { queue ->
-            DesktopMenuRow(DesktopPhoneMenuIcons.AddToQueue, "Add to queue") { onDismiss(); queue() }
+            DesktopMenuRow(DesktopIcons.Actions.PlayLast, "Add to queue") { onDismiss(); queue() }
         }
         actions.onSaveToLibrary?.let { save ->
             DesktopMenuRow(
-                icon = if (actions.savedToLibrary) BitChordIcons.Check else Icons.AutoMirrored.Rounded.PlaylistAdd,
+                icon = if (actions.savedToLibrary) BitChordIcons.Check else DesktopIcons.Actions.PlaylistAdd,
                 label = if (actions.savedToLibrary) "Remove from library" else "Save to library",
             ) { onDismiss(); save() }
         }
         actions.onPin?.let { pin ->
             DesktopMenuRow(
-                icon = Icons.Rounded.PushPin,
+                icon = DesktopIcons.Actions.Pin,
                 label = if (actions.pinned) "Unpin playlist" else "Pin playlist",
                 selected = actions.pinned,
             ) { onDismiss(); pin() }
@@ -441,25 +552,25 @@ internal fun DesktopCollectionContextMenu(
         actions.onDownloadAll?.let { download ->
             val progress = actions.playlistProgress
             when {
-                progress == null -> DesktopMenuRow(DesktopPhoneMenuIcons.Download, "Download all") { onDismiss(); download() }
+                progress == null -> DesktopMenuRow(DesktopIcons.Actions.Download, "Download all") { onDismiss(); download() }
                 progress.downloading -> DesktopMenuRow(BitChordIcons.Clock, "Downloading · ${progress.done + progress.active} of ${progress.total}") { onDismiss(); download() }
-                actions.playlistStale -> DesktopMenuRow(Icons.Rounded.Refresh, "Update download") { onDismiss(); download() }
+                actions.playlistStale -> DesktopMenuRow(DesktopIcons.Actions.Refresh, "Update download") { onDismiss(); download() }
                 else -> DesktopMenuRow(BitChordIcons.Check, "Downloaded") { onDismiss(); download() }
             }
         }
         actions.onRemovePlaylistDownload?.let { remove ->
-            DesktopMenuRow(Icons.Rounded.Delete, "Remove playlist download") { onDismiss(); remove() }
+            DesktopMenuRow(DesktopIcons.Actions.Delete, "Remove playlist download") { onDismiss(); remove() }
         }
         actions.onShare?.let { share ->
-            DesktopMenuRow(Icons.Rounded.Share, "Share") { onDismiss(); share() }
+            DesktopMenuRow(DesktopIcons.Actions.Share, "Share") { onDismiss(); share() }
         }
         if (actions.onRename != null || actions.onDelete != null) {
             DesktopMenuDivider()
             actions.onRename?.let { rename ->
-                DesktopMenuRow(Icons.Rounded.Edit, "Rename") { onDismiss(); rename() }
+                DesktopMenuRow(DesktopIcons.Actions.Edit, "Rename") { onDismiss(); rename() }
             }
             actions.onDelete?.let { delete ->
-                DesktopMenuRow(Icons.Rounded.Delete, "Delete playlist") { onDismiss(); delete() }
+                DesktopMenuRow(DesktopIcons.Actions.Delete, "Delete playlist") { onDismiss(); delete() }
             }
         }
     }
@@ -477,11 +588,11 @@ internal fun DesktopPlaylistDownloadRowMenu(
     onDismiss: () -> Unit,
 ) {
     DesktopMenuSurface(onDismiss = onDismiss) {
-        DesktopMenuRow(Icons.Rounded.PlayArrow, "Open") { onDismiss(); onOpen() }
+        DesktopMenuRow(DesktopIcons.Player.Play, "Open") { onDismiss(); onOpen() }
         onUpdate?.let { update ->
-            DesktopMenuRow(Icons.Rounded.Refresh, "Update download") { onDismiss(); update() }
+            DesktopMenuRow(DesktopIcons.Actions.Refresh, "Update download") { onDismiss(); update() }
         }
-        DesktopMenuRow(Icons.Rounded.Delete, "Remove download") { onDismiss(); onRemove() }
+        DesktopMenuRow(DesktopIcons.Actions.Delete, "Remove download") { onDismiss(); onRemove() }
     }
 }
 
@@ -493,13 +604,13 @@ internal fun DesktopSpotifyPendingSongMenu(onResolveAndPlay: () -> Unit) {
         DesktopMoreButton(onClick = { open = true })
         if (open) {
             DesktopMenuSurface(onDismiss = { open = false }) {
-                DesktopMenuRow(Icons.Rounded.PlayArrow, "Find & play on YouTube Music") {
+                DesktopMenuRow(DesktopIcons.Player.Play, "Find & play on YouTube Music") {
                     open = false
                     onResolveAndPlay()
                 }
                 DesktopMenuDivider()
                 DesktopMenuRow(
-                    Icons.AutoMirrored.Rounded.QueueMusic,
+                    DesktopIcons.Player.QueueMusic,
                     "More actions available after matching",
                     enabled = false,
                 ) {}
@@ -634,7 +745,7 @@ private fun DesktopMenuHeader(title: String, onBack: () -> Unit) {
             .padding(horizontal = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Rounded.ArrowBack, DesktopStrings["back", "Back"], tint = DesktopSecondary, modifier = Modifier.size(14.dp))
+        Icon(DesktopIcons.Navigation.ArrowBack, DesktopStrings["back", "Back"], tint = DesktopSecondary, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(8.dp))
         Text(
             title,
@@ -648,7 +759,7 @@ private fun DesktopMenuHeader(title: String, onBack: () -> Unit) {
 @Composable
 private fun DesktopMenuDivider() {
     HorizontalDivider(
-        Modifier.padding(vertical = 3.dp),
+        Modifier.padding(horizontal = 14.dp, vertical = 3.dp),
         thickness = 0.5.dp,
         color = DesktopBarEdge,
     )
@@ -758,7 +869,11 @@ private fun DesktopMenuRow(
 
 /** The "…" the menu hangs off, sized and tinted to sit beside the player's heart. */
 @Composable
-internal fun DesktopMoreButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+internal fun DesktopMoreButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = DesktopForeground.copy(alpha = 0.75f),
+) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val hoverColor by animateColorAsState(
@@ -783,9 +898,34 @@ internal fun DesktopMoreButton(onClick: () -> Unit, modifier: Modifier = Modifie
                     Modifier
                         .size(3.5.dp)
                         .clip(RoundedCornerShape(2.dp))
-                        .background(DesktopForeground.copy(alpha = 0.75f)),
+                        .background(tint),
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SongInfoRow(label: String, value: String) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = DesktopSecondary,
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = DesktopForeground,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f),
+            textAlign = androidx.compose.ui.text.style.TextAlign.End,
+        )
     }
 }

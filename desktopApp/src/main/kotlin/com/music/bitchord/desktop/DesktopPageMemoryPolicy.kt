@@ -11,10 +11,10 @@ import java.nio.file.Path
 
 /** Process resident memory, including native audio, images, and renderer allocations. */
 internal object DesktopPageMemoryPolicy {
-    const val TRIM_THRESHOLD_BYTES = 650L * 1_024L * 1_024L
+    const val TRIM_THRESHOLD_BYTES = 300L * 1_024L * 1_024L
     // The active page may have no inactive sibling to evict. Throttle full native/heap
-    // trimming to avoid oscillating frame textures or forcing GC every 5-second poll.
-    const val ACTIVE_PAGE_TRIM_COOLDOWN_NS = 2L * 60L * 1_000_000_000L
+    // trimming to avoid oscillating frame textures or starving playback every 5-second poll.
+    const val ACTIVE_PAGE_TRIM_COOLDOWN_NS = 30L * 1_000_000_000L
 
     fun shouldTrimActivePage(rssBytes: Long, elapsedSinceTrimNs: Long): Boolean =
         rssBytes >= TRIM_THRESHOLD_BYTES && elapsedSinceTrimNs >= ACTIVE_PAGE_TRIM_COOLDOWN_NS
@@ -30,11 +30,27 @@ internal object DesktopPageMemoryPolicy {
     fun trimProcessMemory() {
         DesktopArtworkCache.clear()
         DesktopImageLoader.trimMemory()
+        // Concurrent G1GC (-XX:+ExplicitGCInvokesConcurrent) finalizes evicted Skia ImageBitmap peers
+        // without a Stop-The-World pause, allowing malloc_trim to return native memory to the OS.
         System.gc()
         if (System.getProperty("os.name").contains("Linux", ignoreCase = true)) {
             runCatching { LinuxLibC.instance?.malloc_trim(0L) }
         }
     }
+
+    /**
+     * Reclaims native heap and idle WebView memory on the active page without wiping
+     * the already-capped artwork caches, preventing a re-decode RSS spike & black-thumbnail loop.
+     */
+    fun trimNativeHeapOnly() {
+        DesktopPoTokenWebView.trimIfIdle(IDLE_POTOKEN_TRIM_MS)
+        System.gc()
+        if (System.getProperty("os.name").contains("Linux", ignoreCase = true)) {
+            runCatching { LinuxLibC.instance?.malloc_trim(0L) }
+        }
+    }
+
+    private const val IDLE_POTOKEN_TRIM_MS = 60L * 1_000L
 
     // Do not substitute JVM heap size for resident memory: native allocations are substantial.
     fun processResidentBytes(): Long? = runCatching {

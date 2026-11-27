@@ -1,8 +1,12 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -18,20 +22,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.rounded.VolumeOff
-import androidx.compose.material.icons.automirrored.rounded.VolumeUp
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.Cast
-import androidx.compose.material.icons.rounded.CastConnected
-import androidx.compose.material.icons.rounded.ExpandLess
-import androidx.compose.material.icons.rounded.ExpandMore
-import androidx.compose.material.icons.rounded.GraphicEq
-import androidx.compose.material.icons.rounded.Headphones
-import androidx.compose.material.icons.rounded.Speaker
-import androidx.compose.material.icons.rounded.Tv
-import androidx.compose.material.icons.rounded.Usb
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -67,20 +57,33 @@ import com.music.bitchord.sharedui.resources.cast
 import com.music.bitchord.ui.player.ThinSlider
 import org.jetbrains.compose.resources.stringResource
 
+internal val DesktopAudioOutputButtonSize = 32.dp
+
 @Composable
-internal fun DesktopAudioOutputButton(onOpen: (Rect) -> Unit, iconSize: Dp = 18.dp) {
-    var anchor by remember { mutableStateOf<Rect?>(null) }
-    DesktopToolbarButton(
-        onClick = { anchor?.let(onOpen) },
-        size = 32.dp,
-        modifier = Modifier.onGloballyPositioned { anchor = it.boundsInRoot() },
-    ) {
+internal fun DesktopAudioOutputButton(
+    onOpen: (Rect) -> Unit,
+    iconSize: Dp = 18.dp,
+    tint: Color = DesktopSecondary,
+    interactive: Boolean = true,
+) {
+    val glyph: @Composable () -> Unit = {
         Icon(
-            Icons.Rounded.Headphones,
-            DesktopStrings["audio_output", "Audio output"],
-            tint = DesktopSecondary,
+            DesktopIcons.Audio.Headphones,
+            if (interactive) DesktopStrings["audio_output", "Audio output"] else null,
+            tint = tint,
             modifier = Modifier.size(iconSize),
         )
+    }
+    if (interactive) {
+        var anchor by remember { mutableStateOf<Rect?>(null) }
+        DesktopToolbarButton(
+            onClick = { anchor?.let(onOpen) },
+            size = DesktopAudioOutputButtonSize,
+            modifier = Modifier.onGloballyPositioned { anchor = it.boundsInRoot() },
+            content = glyph,
+        )
+    } else {
+        Box(Modifier.size(DesktopAudioOutputButtonSize), contentAlignment = Alignment.Center) { glyph() }
     }
 }
 
@@ -93,13 +96,7 @@ internal fun DesktopAudioOutputMenu(
 ) {
     if (LocalDesktopMenuPortal.current == null) return
 
-    val selected by DesktopAudioDevices.selected.collectAsState()
-    val changes by DesktopAudioDevices.changes.collectAsState()
-    val devices = remember(changes) { DesktopAudioDevices.available() }
     val cast by DesktopPlayerHost.castState.collectAsState()
-    var showAdvanced by remember { mutableStateOf(false) }
-    val advanced = devices.count(DesktopAudioDevices::isAdvancedDevice)
-
     DesktopMenuSurface(onDismiss = onDismiss, anchor = anchor, maxHeight = 390.dp) {
         Text(
             DesktopStrings["audio_output", "Audio output"],
@@ -108,41 +105,11 @@ internal fun DesktopAudioOutputMenu(
             color = DesktopForeground,
             modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 7.dp),
         )
-        AudioOutputMenuRow(
-            name = DesktopStrings["d_system_default", "System default"],
-            description = if (selected == DesktopAudioDevices.SYSTEM_DEFAULT) stringResource(Res.string.audio_output_playing) else "",
-            icon = Icons.Rounded.Speaker,
-            chosen = selected == DesktopAudioDevices.SYSTEM_DEFAULT,
-        ) {
-            DesktopAudioDevices.select(DesktopAudioDevices.SYSTEM_DEFAULT)
-            onDismiss()
-        }
-        devices.forEach { device ->
-            if (showAdvanced || device.id == selected || !DesktopAudioDevices.isAdvancedDevice(device)) {
-                key(device.id) {
-                    AudioOutputMenuRow(
-                        name = device.name,
-                        description = if (device.id == selected) stringResource(Res.string.audio_output_playing) else device.description,
-                        icon = audioOutputIcon(device.name),
-                        chosen = device.id == selected,
-                    ) {
-                        DesktopAudioDevices.select(device.id)
-                        onDismiss()
-                    }
-                }
-            }
-        }
-        if (advanced > 0) {
-            AudioOutputMenuDivider()
-            AudioOutputMenuRow(
-                name = if (showAdvanced) "Hide advanced audio devices" else "Show advanced audio devices ($advanced)",
-                icon = if (showAdvanced) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-            ) { showAdvanced = !showAdvanced }
-        }
+        AudioOutputDeviceRows(onDismiss)
         if (onOpenCast != null && cast.supported) {
             AudioOutputMenuRow(
                 name = cast.connectedName ?: stringResource(Res.string.cast),
-                icon = if (cast.connectedName != null) Icons.Rounded.CastConnected else Icons.Rounded.Cast,
+                icon = if (cast.connectedName != null) DesktopIcons.Audio.CastConnected else DesktopIcons.Audio.Cast,
                 arrow = true,
             ) {
                 onDismiss()
@@ -152,11 +119,89 @@ internal fun DesktopAudioOutputMenu(
         if (onOpenPipeline != null) {
             AudioOutputMenuDivider()
             AudioOutputVolume()
-            AudioOutputMenuRow(name = stringResource(Res.string.audio_pipeline), icon = Icons.Rounded.GraphicEq, arrow = true) {
+            AudioOutputMenuRow(name = stringResource(Res.string.audio_pipeline), icon = DesktopIcons.Audio.GraphicEq, arrow = true) {
                 onDismiss()
                 onOpenPipeline()
             }
         }
+    }
+}
+
+@Composable
+internal fun DesktopAudioOutputPage(onBack: () -> Unit) {
+    val scroll = rememberScrollState()
+    DesktopSettingsPageFrame {
+        DesktopSettingsPageTitle(DesktopSettingsPage.AUDIO_OUTPUT.title)
+        Column(
+            Modifier.weight(1f).verticalScroll(scroll).padding(bottom = 28.dp),
+        ) {
+            DesktopSettingsGroup {
+                AudioOutputDeviceRows(onBack, page = true)
+            }
+        }
+    }
+}
+
+@Composable
+private fun AudioOutputDeviceRows(onDismiss: () -> Unit, page: Boolean = false) {
+    val selected by DesktopAudioDevices.selected.collectAsState()
+    val changes by DesktopAudioDevices.changes.collectAsState()
+    val devices = remember(changes) { DesktopAudioDevices.available() }
+    var showAdvanced by remember { mutableStateOf(false) }
+    val advanced = devices.count(DesktopAudioDevices::isAdvancedDevice)
+
+    AudioOutputDeviceRow(
+        page, false,
+        DesktopStrings["d_system_default", "System default"],
+        if (selected == DesktopAudioDevices.SYSTEM_DEFAULT) stringResource(Res.string.audio_output_playing) else "",
+        DesktopIcons.Audio.Speaker,
+        selected == DesktopAudioDevices.SYSTEM_DEFAULT,
+    ) {
+        DesktopAudioDevices.select(DesktopAudioDevices.SYSTEM_DEFAULT)
+        onDismiss()
+    }
+    devices.forEach { device ->
+        if (showAdvanced || device.id == selected || !DesktopAudioDevices.isAdvancedDevice(device)) {
+            key(device.id) {
+                AudioOutputDeviceRow(
+                    page, true,
+                    name = device.name,
+                    description = if (device.id == selected) stringResource(Res.string.audio_output_playing) else device.description,
+                    icon = audioOutputIcon(device.name),
+                    chosen = device.id == selected,
+                ) {
+                    DesktopAudioDevices.select(device.id)
+                    onDismiss()
+                }
+            }
+        }
+    }
+    if (advanced > 0) {
+        if (!page) AudioOutputMenuDivider()
+        val label = if (showAdvanced) "Hide advanced audio devices" else "Show advanced audio devices ($advanced)"
+        val icon = if (showAdvanced) DesktopIcons.Window.ExpandLess else DesktopIcons.Window.ExpandMore
+        if (page) {
+            DesktopSettingsDivider(insetForIcon = true)
+            DesktopSettingsRow(label, icon = icon, onClick = { showAdvanced = !showAdvanced })
+        } else AudioOutputMenuRow(name = label, icon = icon) { showAdvanced = !showAdvanced }
+    }
+}
+
+@Composable
+private fun AudioOutputDeviceRow(
+    page: Boolean,
+    divider: Boolean,
+    name: String,
+    description: String,
+    icon: ImageVector,
+    chosen: Boolean,
+    onClick: () -> Unit,
+) {
+    if (page) {
+        if (divider) DesktopSettingsDivider(insetForIcon = true)
+        DesktopSettingsRow(name, description, icon, selected = chosen, onClick = onClick)
+    } else {
+        AudioOutputMenuRow(name, description = description, icon = icon, chosen = chosen, onClick = onClick)
     }
 }
 
@@ -183,7 +228,7 @@ private fun AudioOutputVolume() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Icon(
-            if (level > 0f) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
+            if (level > 0f) DesktopIcons.Audio.VolumeUp else DesktopIcons.Audio.VolumeOff,
             contentDescription = null,
             tint = DesktopSecondary,
             modifier = Modifier.size(18.dp),
@@ -273,7 +318,7 @@ private fun AudioOutputMenuRow(
             Spacer(Modifier.width(8.dp))
             Icon(BitChordIcons.Check, null, tint = DesktopForeground, modifier = Modifier.size(18.dp))
         } else if (arrow) {
-            Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = DesktopSecondary, modifier = Modifier.size(17.dp))
+            Icon(DesktopIcons.Navigation.ChevronRight, null, tint = DesktopSecondary, modifier = Modifier.size(17.dp))
         }
     }
 }
@@ -281,10 +326,10 @@ private fun AudioOutputMenuRow(
 private fun audioOutputIcon(name: String): ImageVector {
     val n = name.lowercase()
     return when {
-        "bluetooth" in n || "buds" in n || "airpods" in n -> Icons.Rounded.Bluetooth
-        "headphone" in n || "headset" in n || "earpods" in n -> Icons.Rounded.Headphones
-        "usb" in n || "dac" in n -> Icons.Rounded.Usb
-        "hdmi" in n || "display" in n -> Icons.Rounded.Tv
-        else -> Icons.Rounded.Speaker
+        "bluetooth" in n || "buds" in n || "airpods" in n -> DesktopIcons.Audio.Bluetooth
+        "headphone" in n || "headset" in n || "earpods" in n -> DesktopIcons.Audio.Headphones
+        "usb" in n || "dac" in n -> DesktopIcons.Audio.Usb
+        "hdmi" in n || "display" in n -> DesktopIcons.Audio.Tv
+        else -> DesktopIcons.Audio.Speaker
     }
 }

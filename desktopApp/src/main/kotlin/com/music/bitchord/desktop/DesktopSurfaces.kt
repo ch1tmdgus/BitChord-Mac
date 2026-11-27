@@ -7,21 +7,35 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.foundation.border
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -34,8 +48,14 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.music.bitchord.desktop.icons.DesktopIcons
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.HazeTint
 import dev.chrisbanes.haze.hazeEffect
@@ -65,7 +85,7 @@ internal fun Modifier.desktopCard(shape: Shape): Modifier =
 internal fun Modifier.desktopCardInset(shape: Shape): Modifier =
     clip(shape).background(DesktopCardInsetFill).border(0.5.dp, DesktopCardEdge, shape)
 
-/** The rule between two rows of a card. A page of Settings has none: its rows are spaced, not ruled. */
+/** A popup card separator. Settings groups supply their own inset dividers. */
 @Composable
 internal fun DesktopCardRule(modifier: Modifier = Modifier) {
     if (LocalDesktopPanelIsPage.current) return
@@ -90,16 +110,16 @@ internal val DesktopSettingsPageWidth = 840.dp
 /** A page of Settings: a column down the middle of the page area, as tall as the area. */
 @Composable
 internal fun DesktopSettingsPageFrame(
-    maxWidth: Dp = DesktopSettingsPageWidth,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        val gutter = if (maxWidth < 500.dp) 16.dp else DesktopSettingsPageGutter
         Column(
             Modifier
-                .widthIn(max = maxWidth)
+                .widthIn(max = DesktopSettingsPageWidth)
                 .fillMaxWidth()
                 .fillMaxHeight()
-                .padding(horizontal = DesktopSettingsPageGutter),
+                .padding(horizontal = gutter),
             content = content,
         )
     }
@@ -169,10 +189,7 @@ internal fun DesktopDialogPanel(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     if (!popup && LocalDesktopPanelIsPage.current) {
-        DesktopSettingsPageFrame(
-            maxWidth = maxOf(maxWidth.dp, DesktopSettingsPageWidth),
-            content = content,
-        )
+        DesktopSettingsPageFrame(content = content)
         return
     }
     DesktopRegisterFlyout(
@@ -181,9 +198,12 @@ internal fun DesktopDialogPanel(
     )
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         DesktopFlyoutBackdrop(onDismiss = onDismiss)
-        DesktopFlyoutCard(Modifier.widthIn(max = maxWidth.dp).fillMaxWidth()) {
+        DesktopFlyoutCard(
+            Modifier.padding(16.dp).widthIn(max = maxWidth.dp).fillMaxWidth(),
+            glass = true,
+        ) {
             Column(
-                Modifier.padding(bottom = 4.dp),
+                Modifier.padding(bottom = 8.dp),
                 verticalArrangement = Arrangement.Top,
             ) {
                 // A prompt opened from a page is a card, and so is anything it opens in turn.
@@ -202,13 +222,15 @@ internal fun DesktopFlyoutCard(
     onBackgroundClick: () -> Unit = {},
     /** Quick Search gets its own blur preference; unrelated dialogs remain opaque. */
     frosted: Boolean = false,
+    /** Modernized modal dialogs share the New playlist glass shell. */
+    glass: Boolean = false,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val decoration = if (frosted) {
-        modifier.clip(shape).desktopBarGlass(shape, DesktopBlurArea.QUICK_SEARCH)
-    } else {
-        modifier.desktopCard(shape)
+    val decoration = when {
+        frosted -> modifier.clip(shape).desktopBarGlass(shape, DesktopBlurArea.QUICK_SEARCH)
+        glass -> modifier.clip(shape).desktopBarGlass(shape)
+        else -> modifier.desktopCard(shape)
     }
     Box(decoration) {
         // A separate pointer-only sibling: clicking content cannot dismiss the backdrop or leave
@@ -290,6 +312,8 @@ internal fun DesktopDropdownMenu(
         modifier = modifier.desktopMenuGlass(shape),
         shape = shape,
         containerColor = Color.Transparent,
+        tonalElevation = 0.dp,
+        shadowElevation = 0.dp,
         content = content,
     )
 }
@@ -308,4 +332,176 @@ internal fun DesktopDropdownMenuItem(
         modifier = Modifier.height(40.dp),
         contentPadding = PaddingValues(horizontal = 12.dp),
     )
+}
+
+/**
+ * Shared modal frame matching the modernized "New playlist" dialog style:
+ * glass surface, 20.dp rounded corners, and a click-to-dismiss scrim.
+ */
+@Composable
+internal fun DesktopDialogFrame(
+    onDismiss: () -> Unit,
+    maxWidth: Dp = 480.dp,
+    dismissOnEscape: Boolean = false,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    DesktopRegisterFlyout(
+        layer = DesktopFlyoutLayer.DIALOG,
+        onDismiss = if (dismissOnEscape) onDismiss else null,
+    )
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.5f))
+                .focusProperties { canFocus = false }
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onDismiss,
+                ),
+        )
+        val shape = RoundedCornerShape(20.dp)
+        Box(
+            Modifier
+                .padding(16.dp)
+                .widthIn(max = maxWidth)
+                .fillMaxWidth()
+                .clip(shape)
+                .desktopBarGlass(shape),
+        ) {
+            // Swallows clicks that land on the panel's own background so they do not reach the
+            // scrim behind it and dismiss what was just clicked.
+            Box(
+                Modifier
+                    .matchParentSize()
+                    .focusProperties { canFocus = false }
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = {},
+                    ),
+            )
+            Column(Modifier.padding(bottom = 8.dp), content = content)
+        }
+    }
+}
+
+@Composable
+internal fun DesktopDialogHeading(title: String, subtitle: String = "") {
+    Text(
+        title,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.SemiBold,
+        color = DesktopForeground,
+        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 20.dp),
+    )
+    if (subtitle.isNotBlank()) {
+        Text(
+            subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = DesktopSecondary,
+            modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 6.dp),
+        )
+    }
+}
+
+@Composable
+internal fun DesktopDialogSectionHeading(text: String) {
+    Text(
+        text.uppercase(),
+        style = MaterialTheme.typography.labelSmall,
+        color = DesktopSecondary,
+        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 14.dp, bottom = 4.dp),
+    )
+}
+
+@Composable
+internal fun DesktopDialogError(message: String) {
+    Text(
+        message,
+        style = MaterialTheme.typography.bodySmall,
+        color = DesktopAccent,
+        modifier = Modifier.padding(start = 22.dp, end = 22.dp, top = 10.dp),
+    )
+}
+
+/** Filled rounded input field matching the "New playlist" dialog. */
+@Composable
+internal fun DesktopDialogField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    horizontalPadding: Dp = 22.dp,
+    enabled: Boolean = true,
+    isPassword: Boolean = false,
+    imeAction: ImeAction = ImeAction.Done,
+    onSubmit: () -> Unit = {},
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(horizontal = horizontalPadding)
+            .clip(RoundedCornerShape(11.dp))
+            .background(DesktopForeground.copy(alpha = if (enabled) 0.08f else 0.04f))
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.weight(1f)) {
+            if (value.isEmpty()) {
+                Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = DesktopSecondary)
+            }
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                enabled = enabled,
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyLarge.copy(color = DesktopForeground),
+                cursorBrush = SolidColor(DesktopAccent),
+                visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+                keyboardOptions = KeyboardOptions(imeAction = imeAction),
+                keyboardActions = KeyboardActions(onDone = { onSubmit() }),
+                modifier = modifier.fillMaxWidth(),
+            )
+        }
+        if (value.isNotEmpty() && enabled) {
+            Box(
+                Modifier.size(28.dp).clip(CircleShape).clickable { onValueChange("") },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    DesktopIcons.Actions.Close,
+                    DesktopStrings["clear", "Clear"],
+                    tint = DesktopSecondary,
+                    modifier = Modifier.size(18.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DesktopDialogButtons(
+    busy: Boolean = false,
+    confirmLabel: String,
+    confirmEnabled: Boolean = true,
+    dismissLabel: String = DesktopStrings["cancel", "Cancel"],
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (busy) {
+            CircularProgressIndicator(color = DesktopAccent, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(12.dp))
+        }
+        TextButton(onClick = onDismiss, enabled = !busy) { Text(dismissLabel, color = DesktopSecondary) }
+        TextButton(onClick = onConfirm, enabled = confirmEnabled && !busy) {
+            Text(confirmLabel, color = if (confirmEnabled && !busy) DesktopAccent else DesktopSecondary)
+        }
+    }
 }

@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -15,11 +17,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.material.icons.automirrored.rounded.Sort
-import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -40,6 +38,7 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.music.bitchord.data.model.SearchHistoryEntity
 import com.music.bitchord.data.settings.LibrarySort
 import com.music.bitchord.data.settings.LibraryViewType
@@ -215,7 +214,7 @@ internal fun DesktopLibrarySortMenu() {
     var open by remember { mutableStateOf(false) }
     Box {
         DesktopToolbarButton(onClick = { open = true }) {
-            Icon(Icons.AutoMirrored.Rounded.Sort, DesktopStrings["sort_library", "Sort library"], tint = DesktopForeground)
+            Icon(DesktopIcons.Navigation.Sort, DesktopStrings["sort_library", "Sort library"], tint = DesktopForeground)
         }
         DesktopDropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             LibrarySort.entries.forEach { option ->
@@ -230,7 +229,7 @@ internal fun DesktopLibrarySortMenu() {
                         )
                     },
                     trailingIcon = if (option == sort) {
-                        { Icon(Icons.Rounded.Check, contentDescription = null) }
+                        { Icon(DesktopIcons.Actions.Check, contentDescription = null) }
                     } else {
                         null
                     },
@@ -255,6 +254,7 @@ internal fun DesktopPlayPill(
     onClick: () -> Unit,
     iconOnly: Boolean = false,
     size: Dp = 50.dp,
+    compact: Boolean = false,
 ) {
     Row(
         Modifier
@@ -263,7 +263,7 @@ internal fun DesktopPlayPill(
             .background(DesktopAccent)
             .desktopHoverWash()
             .clickable(onClick = onClick)
-            .then(if (iconOnly) Modifier else Modifier.padding(horizontal = 32.dp)),
+            .then(if (iconOnly) Modifier else Modifier.padding(horizontal = if (compact) 12.dp else 32.dp)),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -271,11 +271,18 @@ internal fun DesktopPlayPill(
             BitChordIcons.Play,
             contentDescription = if (iconOnly) label else null,
             tint = DesktopOnAccent,
-            modifier = Modifier.size(if (iconOnly) size * 0.44f else 18.dp),
+            modifier = Modifier.size(
+                if (iconOnly) size * 0.44f else if (compact) 14.dp else 18.dp,
+            ),
         )
         if (!iconOnly) {
-            Spacer(Modifier.width(8.dp))
-            Text(label, style = MaterialTheme.typography.titleMedium, color = DesktopOnAccent)
+            Spacer(Modifier.width(if (compact) 4.dp else 8.dp))
+            Text(
+                label,
+                style = if (compact) MaterialTheme.typography.titleMedium.copy(fontSize = 12.sp)
+                    else MaterialTheme.typography.titleMedium,
+                color = DesktopOnAccent,
+            )
         }
     }
 }

@@ -153,6 +153,8 @@
     <string name="recent_search_remove">Remove “%1$s” from recent searches</string>
     <string name="recent_searches">Recent searches</string>
     <string name="replay_subtitle">Your top songs, artists, albums and genres</string>
+    <string name="mixes_yours">Your Mixes</string>
+    <string name="mixes_none">No mixes yet. Keep listening and YouTube Music will make some for you.</string>
     <string name="retry">Retry</string>
     <string name="saved_to_youtube_music">Saved to YouTube Music</string>
     <string name="search">Search</string>
@@ -271,8 +273,11 @@
     <string name="mix_view_one_bar">1 Bar</string>
     <string name="mix_view_seconds">%1$d sec</string>
     <string name="mix_view_bpm">%1$d bpm</string>
+    <string name="automix_overview">Automix overview</string>
 
 
     <string name="switch_to_grid_view">Switch to grid view</string>
     <string name="switch_to_list_view">Switch to list view</string>
+    <string name="best_part">Best Part</string>
+    <string name="best_part_description">Skip to the best part of the song</string>
 </resources>

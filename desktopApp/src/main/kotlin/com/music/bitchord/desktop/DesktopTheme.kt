@@ -30,7 +30,10 @@ internal object DesktopTheme {
     )
         private set
 
-    private var systemDark: Boolean by mutableStateOf(DesktopSystemTheme.isDark())
+    private var systemDark: Boolean by mutableStateOf(mode == DesktopThemeMode.SYSTEM && DesktopSystemTheme.isDark())
+
+    // Trigger the initial appearance read outside the Swing render path.
+    fun initialize() = Unit
 
     /** Saved independently of the system/light/dark choice; defaults to classic dark. */
     var pitchBlack: Boolean by mutableStateOf(DesktopPersistence().boolean(KEY_PITCH_BLACK, false))
@@ -117,7 +120,7 @@ internal val DARK_PALETTE = DesktopThemePalette(
     surfaceRaised = Color(0xFF1C1C1E),
     glass = Color(0x661C1C1E),
     glassStrong = Color(0xCC0D0D0F),
-    barGlass = Color(0xB324242A),
+    barGlass = Color(0xFF222224),
     barEdge = Color(0x1AFFFFFF),
     accent = Color.White,
     onAccent = Color.Black,

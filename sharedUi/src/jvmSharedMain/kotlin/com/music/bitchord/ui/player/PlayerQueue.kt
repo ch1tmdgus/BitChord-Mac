@@ -1,5 +1,7 @@
 package com.music.bitchord.ui.player
 
+import com.music.bitchord.ui.icons.SfStyleIcons
+
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 import com.music.bitchord.ui.components.trackArtSize
@@ -40,10 +42,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.DragHandle
-import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -84,7 +82,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Velocity
-import coil3.compose.AsyncImage
+import com.music.bitchord.ui.components.RetryableAsyncImage
 import com.music.bitchord.ui.components.thumbnailBorder
 import com.music.bitchord.ui.icons.BitChordIcons
 import com.music.bitchord.data.model.QueueTier
@@ -777,7 +775,7 @@ private fun InlineQueueRow(
     ) {
         if (draggable) {
             Icon(
-                Icons.Rounded.DragHandle,
+                SfStyleIcons.DragHandle,
                 contentDescription = stringResource(Res.string.drag_to_reorder),
                 tint = colors.muted,
                 modifier = Modifier
@@ -805,8 +803,9 @@ private fun InlineQueueRow(
             mode = ArtworkHoverMode.DARKEN_AND_PLAY,
             hovered = rowHovered,
         ) {
-            AsyncImage(
-                model = rememberRemoteArtworkUrl(song),
+            val artUrl = rememberRemoteArtworkUrl(song)
+            RetryableAsyncImage(
+                url = artUrl,
                 contentScale = ContentScale.Crop,
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize().background(colors.primary.copy(alpha = 0.08f)),
@@ -830,7 +829,7 @@ private fun InlineQueueRow(
         }
         if (isCurrent) {
             Icon(
-                Icons.Rounded.GraphicEq,
+                SfStyleIcons.GraphicEq,
                 contentDescription = stringResource(Res.string.now_playing),
                 tint = colors.primary,
                 modifier = Modifier.size(18.dp),
@@ -846,7 +845,7 @@ private fun InlineQueueRow(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    Icons.Rounded.Close,
+                    SfStyleIcons.Close,
                     contentDescription = stringResource(Res.string.remove_from_queue),
                     tint = colors.secondary,
                     modifier = Modifier.size(18.dp),

@@ -40,7 +40,11 @@ internal data class DesktopStream(
      * [DesktopRangeStream].
      */
     val windowedReads: Boolean = false,
+    /** Set only by the unrestricted YouTube resolver for this exact recording. */
+    val analysisVideoId: String? = null,
 )
+
+internal fun DesktopStream.rangeCacheIdentity(trackId: String): String = "$trackId|$sourceId|$format"
 
 /**
  * A YouTube track's stream, resolved the way the phone resolves it.
@@ -54,9 +58,11 @@ internal data class DesktopStream(
 internal object DesktopStreamClient {
     suspend fun resolve(song: Song, maxKbps: Int = Int.MAX_VALUE): Result<DesktopStream> = runCatching {
         val url = withContext(Dispatchers.IO) {
+            DesktopYouTubePlayback.configure()
             ceiling.set(maxKbps)
             try {
-                StreamResolver.resolve(song.videoId)
+                // Reserve time for NewPipe if the primary client walk gets stuck.
+                StreamResolver.resolve(song.videoId, clientWalkTimeoutMs = 12_000L)
             } finally {
                 ceiling.remove()
             }
@@ -73,6 +79,7 @@ internal object DesktopStreamClient {
             // Google's media servers answer 403 to a request for a whole file and 206 to one for
             // a window of it, and FFmpeg's own HTTP client asks for the whole thing.
             windowedReads = true,
+            analysisVideoId = song.videoId.takeIf { maxKbps == Int.MAX_VALUE },
         )
     }
 

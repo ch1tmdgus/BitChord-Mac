@@ -103,6 +103,28 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val ortVersion = "1.29.0"
+val ortArtifact = "com.microsoft.onnxruntime:onnxruntime:$ortVersion"
+val ortPlatform = if (targetOs == "windows") "win-x64" else "linux-x64"
+val ortDistribution by configurations.creating {
+    isCanBeConsumed = false
+    isTransitive = false
+}
+val targetOnnxRuntime by tasks.registering(Zip::class) {
+    description = "Copies the official ONNX Runtime Java API and native binaries for $ortPlatform."
+    archiveFileName.set("onnxruntime-$ortVersion-$ortPlatform.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("onnxruntime"))
+    inputs.files(ortDistribution)
+    from({ zipTree(ortDistribution.singleFile) })
+    includeEmptyDirs = false
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+    eachFile {
+        if (path.startsWith("ai/onnxruntime/native/") &&
+            !path.startsWith("ai/onnxruntime/native/$ortPlatform/")) exclude()
+    }
+}
+
 dependencies {
     // Already on the classpath through the NewPipe extractor.
     implementation("org.jsoup:jsoup:1.22.2")
@@ -130,8 +152,15 @@ dependencies {
     implementation("org.commonmark:commonmark-ext-gfm-tables:0.24.0")
     implementation("org.commonmark:commonmark-ext-gfm-strikethrough:0.24.0")
 
-    // Automix runs the same two models the Android build does.
-    implementation("com.microsoft.onnxruntime:onnxruntime:1.29.0")
+    // Keep the official runtime/JNI pair. Desktop installers only need the target x86_64 binaries.
+    add(ortDistribution.name, ortArtifact)
+    if (providers.gradleProperty("bitchord.ort.fullJar").orNull == "true") {
+        implementation(ortArtifact)
+    } else {
+        compileOnly(ortArtifact)
+        testCompileOnly(ortArtifact)
+        runtimeOnly(files(targetOnnxRuntime))
+    }
 
     // Decoding, resampling and demuxing for the audio engine.
     implementation("org.bytedeco:javacpp:$javacppVersion")
@@ -419,7 +448,10 @@ tasks.named<ProcessResources>("processResources") {
         include("*.dll")
         into("native")
     }
-    // The Automix models, taken from the Android module rather than copied into this one.
+}
+
+tasks.named<ProcessResources>("processTestResources") {
+    // Offline fixtures for inference tests. Release packages fetch these on demand.
     from(rootProject.file("app/src/main/assets")) {
         include("*.onnx")
         into("models")
@@ -483,7 +515,7 @@ val windowsPortableAssemble by tasks.registering {
                 appendLine("set \"HERE=%~dp0\"")
                 appendLine("set \"RUNNER=java\"")
                 appendLine("if defined JAVA_HOME set \"RUNNER=%JAVA_HOME%\\bin\\java\"")
-                append("\"%RUNNER%\" -Xms32m -Xmx512m -XX:+UseG1GC -XX:G1PeriodicGCInterval=10000 -XX:G1PeriodicGCSystemLoadThreshold=0 -XX:MinHeapFreeRatio=20 -XX:MaxHeapFreeRatio=40 -XX:-ShrinkHeapInSteps -Dbitchord.version=$version -Dbitchord.distribution=portable")
+                append("\"%RUNNER%\" -Xms32m -Xmx512m -XX:+UseG1GC -XX:+ExplicitGCInvokesConcurrent -XX:+UseStringDeduplication -XX:G1PeriodicGCInterval=10000 -XX:G1PeriodicGCSystemLoadThreshold=0 -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=30 -XX:-ShrinkHeapInSteps -Dbitchord.version=$version -Dbitchord.distribution=portable")
                 if (moduleIndex.isNotBlank()) append(" -Dbitchord.module.index=$moduleIndex")
                 if (lastfmKey.isNotBlank() && lastfmSharedSecret.isNotBlank()) {
                     append(" -Dbitchord.lastfm.key=$lastfmKey -Dbitchord.lastfm.secret=$lastfmSharedSecret")
@@ -554,10 +586,12 @@ compose.desktop {
         }
         jvmArgs(
             "-XX:+UseG1GC",
+            "-XX:+ExplicitGCInvokesConcurrent",
+            "-XX:+UseStringDeduplication",
             "-XX:G1PeriodicGCInterval=10000",
             "-XX:G1PeriodicGCSystemLoadThreshold=0",
-            "-XX:MinHeapFreeRatio=20",
-            "-XX:MaxHeapFreeRatio=40",
+            "-XX:MinHeapFreeRatio=15",
+            "-XX:MaxHeapFreeRatio=30",
             "-XX:-ShrinkHeapInSteps",
         )
         jvmArgs("-Dbitchord.version=$appVersion", "-Dbitchord.distribution=installed")

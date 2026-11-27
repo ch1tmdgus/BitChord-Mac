@@ -1,5 +1,7 @@
 package com.music.bitchord.desktop
 
+import com.music.bitchord.desktop.icons.DesktopIcons
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,9 +29,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -61,7 +60,6 @@ import com.music.bitchord.data.model.ArtistRef
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.Song
 import com.music.bitchord.playback.PlaybackPosition
-import com.music.bitchord.ui.icons.BitChordIcons
 
 /**
  * The compact Spotify-style track details view. It deliberately uses BitChord's existing
@@ -217,7 +215,7 @@ internal fun DesktopNowPlayingDetailsPanel(
                     if (showLike) {
                         DesktopToolbarButton(onClick = onToggleLike, size = 32.dp) {
                             Icon(
-                                imageVector = if (liked) BitChordIcons.StarFilled else BitChordIcons.Star,
+                                imageVector = if (liked) DesktopIcons.Player.LikeFilled else DesktopIcons.Player.Like,
                                 contentDescription = if (liked) "Remove from liked" else "Add to liked",
                                 tint = if (liked) DesktopAccent else canvasCaptionInk,
                                 modifier = Modifier.size(19.dp),
@@ -229,7 +227,7 @@ internal fun DesktopNowPlayingDetailsPanel(
                         size = 32.dp,
                     ) {
                         Icon(
-                            Icons.Rounded.Info,
+                            DesktopIcons.Status.Info,
                             "Artist details",
                             tint = canvasCaptionInk,
                             modifier = Modifier.size(19.dp),
@@ -267,7 +265,7 @@ internal fun DesktopNowPlayingDetailsPanel(
                 if (showLike) {
                     DesktopToolbarButton(onClick = onToggleLike, size = 34.dp) {
                         Icon(
-                            imageVector = if (liked) BitChordIcons.StarFilled else BitChordIcons.Star,
+                            imageVector = if (liked) DesktopIcons.Player.LikeFilled else DesktopIcons.Player.Like,
                             contentDescription = if (liked) "Remove from liked" else "Add to liked",
                             tint = if (liked) DesktopAccent else secondary,
                             modifier = Modifier.size(19.dp),
@@ -275,7 +273,7 @@ internal fun DesktopNowPlayingDetailsPanel(
                     }
                 }
                 DesktopToolbarButton(onClick = { onOpenArtist(song.artistId, song.artist) }, size = 34.dp) {
-                    Icon(Icons.Rounded.Info, "Artist details", tint = secondary, modifier = Modifier.size(19.dp))
+                    Icon(DesktopIcons.Status.Info, "Artist details", tint = secondary, modifier = Modifier.size(19.dp))
                 }
             }
         }
@@ -548,7 +546,7 @@ private fun CreditsPreviewCard(
                     Text(artist.name, color = DesktopForeground, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(if (index == 0) "Main artist" else "Featured artist", color = DesktopSecondary, fontSize = 11.sp)
                 }
-                Icon(Icons.Rounded.ChevronRight, "View artist", tint = DesktopSecondary, modifier = Modifier.size(19.dp))
+                Icon(DesktopIcons.Navigation.ChevronRight, "View artist", tint = DesktopSecondary, modifier = Modifier.size(19.dp))
             }
         }
     }

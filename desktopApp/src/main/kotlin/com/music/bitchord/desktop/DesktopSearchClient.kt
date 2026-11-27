@@ -7,6 +7,7 @@ import com.music.bitchord.data.model.BrowseItem
 import com.music.bitchord.data.model.BrowseType
 import com.music.bitchord.data.model.HomeFeed
 import com.music.bitchord.data.model.HomeShelf
+import com.music.bitchord.data.model.KeyedMix
 import com.music.bitchord.data.model.LibraryPage
 import com.music.bitchord.data.model.LikeStatus
 import com.music.bitchord.data.model.MoodGenreSection
@@ -37,6 +38,9 @@ object DesktopSearchClient {
     }
 
     suspend fun home(): Result<HomeFeed> = YtMusicRepository.home()
+
+    /** The original BitChord Radio feed: account-specific, localized music mixes. */
+    suspend fun mixedForYouKeyed(): Result<List<KeyedMix>> = YtMusicRepository.mixedForYouKeyed()
 
     suspend fun moreHome(token: String): Result<HomeFeed> = YtMusicRepository.moreHome(token)
 
@@ -70,6 +74,7 @@ object DesktopSearchClient {
                 type = fallback?.type?.takeIf { it != BrowseType.OTHER } ?: browseTypeOf(browseId),
                 songs = page.songs,
                 continuation = page.continuation,
+                description = page.description,
                 owned = page.owned,
             )
         }
@@ -171,6 +176,8 @@ data class DesktopCollection(
      * does not say, or when it is not a playlist at all.
      */
     val owned: Boolean? = null,
+    /** Editorial description returned by the browse response, if present. */
+    val description: String? = null,
     /**
      * A page opened before its tracks have arrived: the id and whatever the card that opened it
      * knew, drawn as a loader until the browse answers.

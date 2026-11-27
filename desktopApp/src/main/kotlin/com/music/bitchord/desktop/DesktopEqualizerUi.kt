@@ -24,7 +24,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -83,27 +82,40 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
     val equalizerScrollState = rememberScrollState()
 
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 560) {
-        Row(
-            Modifier.fillMaxWidth().padding(start = panelInset(22.dp), end = panelInset(18.dp), top = 18.dp, bottom = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(
-                    DesktopStrings["equalizer", "Equalizer"],
-                    style = MaterialTheme.typography.titleLarge,
-                    color = DesktopForeground,
-                )
-                Text(
+        if (LocalDesktopPanelIsPage.current) {
+            DesktopSettingsPageTitle(DesktopSettingsPage.EQUALIZER.title)
+            DesktopSettingsGroup {
+                DesktopSettingsRow(
+                    DesktopSettingsPage.EQUALIZER.title,
                     DesktopStrings["equalizer_footer", "Shapes the sound inside BitChord, before it reaches the system."],
-                    style = MaterialTheme.typography.bodySmall,
-                    color = DesktopSecondary,
+                    checked = enabled,
+                    onClick = { DesktopEqualizerSettings.setEnabled(!enabled) },
                 )
             }
-            Switch(
-                checked = enabled,
-                onCheckedChange = DesktopEqualizerSettings::setEnabled,
-                colors = desktopSwitchColors(),
-            )
+        } else {
+            Row(
+                Modifier.fillMaxWidth().padding(start = panelInset(22.dp), end = panelInset(18.dp), top = 18.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        DesktopStrings["equalizer", "Equalizer"],
+                        style = MaterialTheme.typography.titleLarge,
+                        color = DesktopForeground,
+                    )
+                    Text(
+                        DesktopStrings["equalizer_footer", "Shapes the sound inside BitChord, before it reaches the system."],
+                        style = MaterialTheme.typography.bodySmall,
+                        color = DesktopSecondary,
+                    )
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = DesktopEqualizerSettings::setEnabled,
+                    colors = desktopSwitchColors(),
+                )
+            }
+
         }
 
         // Off, the apparatus below reads as unavailable rather than merely idle: dimmed, and it
@@ -145,6 +157,14 @@ internal fun DesktopEqualizerDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun ModeTabs(mode: DesktopEqualizerMode, onSelect: (DesktopEqualizerMode) -> Unit) {
+    if (LocalDesktopPanelIsPage.current) {
+        DesktopSettingsSegmentedControl(
+            DesktopEqualizerMode.entries, mode,
+            { if (it == DesktopEqualizerMode.DYNAMIC) DesktopStrings["equalizer_dynamic", "Dynamic"] else DesktopStrings["equalizer_manual", "Manual"] },
+            onSelect,
+        )
+        return
+    }
     Row(
         Modifier
             .padding(horizontal = panelInset(22.dp))

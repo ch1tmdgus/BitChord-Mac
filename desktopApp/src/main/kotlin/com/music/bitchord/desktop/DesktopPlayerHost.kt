@@ -55,6 +55,21 @@ internal object DesktopPlayerHost : PlayerHost {
 
     override val settings: DesktopPlayerSettings = DesktopPlayerSettings
     override val mobileTextChrome: Boolean = true
+    override val automixDetailMaxLines: Int = 5
+
+    var autoMixVisual: StateFlow<DesktopAutoMixVisualSample?> = MutableStateFlow(null)
+    val autoMixCanvasFrame = MutableStateFlow<AutoMixCanvasFrame?>(null)
+
+    @Composable
+    override fun AutoMixArtwork(song: Song, canvasVisible: Boolean, modifier: Modifier) {
+        DesktopAutoMixOverlay(song, modifier, com.music.bitchord.data.model.PLAYER_ART_PX,
+            mini = false, canvasVisible = canvasVisible)
+    }
+
+    @Composable
+    override fun AutoMixAmbient(song: Song, theme: PlayerTheme, modifier: Modifier) {
+        DesktopAutoMixAmbient(song, theme, modifier)
+    }
 
     var mixViewOpen: (Boolean) -> Unit = {}
     override fun onMixViewOpen(open: Boolean) = mixViewOpen(open)
@@ -253,6 +268,10 @@ internal object DesktopPlayerSettings : PlayerSettingsSource {
     override val smartFadeEnabled = MutableStateFlow(false)
     override val smartMixInProgress = MutableStateFlow(false)
     override val automixDetail = MutableStateFlow<String?>(null)
+    val automixArtwork = MutableStateFlow(false)
+    val automixMiniArtwork = MutableStateFlow(false)
+    @Volatile var skipArtworkThrough = 0L
+    @Volatile var skipMiniArtworkThrough = 0L
     override val smartMixView = MutableStateFlow<com.music.bitchord.data.settings.MixTransitionView?>(null)
     override val smartMixProgress = MutableStateFlow(0f)
     override val smartMixBlend = MutableStateFlow<MixBlend?>(null)
@@ -308,3 +327,19 @@ private fun DesktopAudioPipeline.toOutputFormat(): OutputFormatUi {
 internal fun lyricsSourceNamed(name: String): LyricsSource? =
     LyricsSource.entries.firstOrNull { it.label.equals(name, ignoreCase = true) }
         ?: LyricsSource.entries.firstOrNull { it.name.equals(name.replace(' ', '_'), ignoreCase = true) }
+
+/** Watch metadata is available for YouTube IDs; local and source-owned IDs use their own artwork. */
+internal fun Song.canFetchDesktopPlayerMetadata(): Boolean =
+    localUri == null && localPath == null && videoId.length == 11 &&
+        videoId.all { it in 'A'..'Z' || it in 'a'..'z' || it in '0'..'9' || it == '-' || it == '_' }
+
+internal fun Song.withDesktopPlayerMetadata(metadata: Song?): Song {
+    val links = metadata?.takeIf { it.videoId == videoId } ?: return this
+    return copy(
+        artistId = artistId ?: links.artistId,
+        artists = artists.ifEmpty { links.artists },
+        albumId = albumId ?: links.albumId,
+        albumName = albumName ?: links.albumName,
+        thumbnailUrl = thumbnailUrl?.takeIf { it.isNotBlank() } ?: links.thumbnailUrl,
+    )
+}

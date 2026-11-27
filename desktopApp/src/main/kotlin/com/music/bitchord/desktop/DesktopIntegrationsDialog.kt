@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
@@ -56,6 +55,7 @@ import kotlin.math.roundToInt
 internal fun DesktopIntegrationsDialog(
     song: Song?,
     spotifyConnected: Boolean,
+    onOpenYouTube: () -> Unit,
     onOpenSpotify: () -> Unit,
     onDisconnectSpotify: () -> Unit,
     onOpenLastfm: () -> Unit,
@@ -73,13 +73,20 @@ internal fun DesktopIntegrationsDialog(
                 .desktopTopScrollFade(integrationsScrollState)
                 .verticalScroll(integrationsScrollState),
         ) {
-            Text(
-                DesktopStrings["account_integrations", "Account & integrations"],
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = DesktopForeground,
-                modifier = Modifier.padding(start = panelInset(20.dp), end = panelInset(20.dp), top = 18.dp, bottom = 12.dp),
-            )
+            if (LocalDesktopPanelIsPage.current) {
+                DesktopSettingsPageTitle(DesktopSettingsPage.INTEGRATIONS.title)
+                DesktopSettingsGroup {
+                    DesktopSettingsRow("YouTube Music", "Manage accounts and sign in", onClick = onOpenYouTube)
+                }
+            } else {
+                Text(
+                    DesktopStrings["account_integrations", "Account & integrations"],
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = DesktopForeground,
+                    modifier = Modifier.padding(start = panelInset(20.dp), end = panelInset(20.dp), top = 18.dp, bottom = 12.dp),
+                )
+            }
             SpotifySection(spotifyConnected, onOpenSpotify, onDisconnectSpotify)
             DiscordSection(song, onOpenDiscordToken, onChoose = { choosing = it }, onEdit = { editing = it })
             ScrobblingSection(onOpenLastfm, onOpenListenBrainz)
@@ -133,7 +140,7 @@ private fun SpotifySection(
             destructive = false,
             onClick = onOpenSpotify,
         )
-        DesktopCardRule()
+        IntegrationRule()
         PanelActionRow(
             title = if (connected) "Switch Spotify account" else "Connect Spotify",
             subtitle = if (connected) {
@@ -145,7 +152,7 @@ private fun SpotifySection(
             onClick = onOpenSpotify,
         )
         if (connected) {
-            DesktopCardRule()
+            IntegrationRule()
             PanelActionRow(
                 title = "Disconnect",
                 subtitle = "Remove the saved Spotify session from this device",
@@ -197,7 +204,7 @@ private fun DiscordSection(
             enabled = connected,
             onCheckedChange = DesktopDiscordRpc::setEnabled,
         )
-        DesktopCardRule()
+        IntegrationRule()
         PanelSwitchRow(
             title = DesktopStrings["lead_with_song", "Lead with the song"],
             subtitle = DesktopStrings["lead_with_song_subtitle", "Puts the title on the bold line instead of the artist"],
@@ -205,7 +212,7 @@ private fun DiscordSection(
             enabled = connected && rpcEnabled,
             onCheckedChange = DesktopDiscordSettings::setUseDetails,
         )
-        DesktopCardRule()
+        IntegrationRule()
         PanelSwitchRow(
             title = DesktopStrings["customize_card", "Customize the card"],
             subtitle = DesktopStrings["customize_card_subtitle", "Status, wording and both buttons"],
@@ -228,7 +235,7 @@ private fun DiscordSection(
                     ),
                 )
             }
-            DesktopCardRule()
+            IntegrationRule()
             PanelValueRow("Activity", DesktopDiscordSettings.activityLabel(activityType)) {
                 onChoose(
                     DiscordChoice(
@@ -240,7 +247,7 @@ private fun DiscordSection(
                     ),
                 )
             }
-            DesktopCardRule()
+            IntegrationRule()
             PanelValueRow("Name", activityName.ifEmpty { DesktopDiscordSettings.APP_NAME }) {
                 onEdit(
                     DiscordField(
@@ -281,7 +288,7 @@ private fun DiscordSection(
                     )
                 },
             )
-            DesktopCardRule()
+            IntegrationRule()
             PanelSwitchRow(
                 title = DesktopStrings["second_button", "Second button"],
                 subtitle = button2Text.ifEmpty { DesktopDiscordSettings.DEFAULT_BUTTON_2 },
@@ -364,7 +371,7 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
             onClick = onOpenListenBrainz,
         )
         if (lbEnabled && lbToken.isNotBlank()) {
-            DesktopCardRule()
+            IntegrationRule()
             val primaryOnly by DesktopScrobbleSettings.listenBrainzPrimaryArtistOnly.collectAsState()
             PanelSwitchRow(
                 title = DesktopStrings["scrobble_primary_artist_only", "Only scrobble primary artist"],
@@ -373,7 +380,7 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
                 onCheckedChange = DesktopScrobbleSettings::setListenBrainzPrimaryArtistOnly,
             )
         }
-        DesktopCardRule()
+        IntegrationRule()
         PanelSwitchRow(
             title = "Last.fm",
             subtitle = when {
@@ -392,21 +399,21 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
             val scrobble by DesktopScrobbleSettings.lastfmScrobble.collectAsState()
             val nowPlaying by DesktopScrobbleSettings.lastfmNowPlaying.collectAsState()
             val primaryOnly by DesktopScrobbleSettings.lastfmPrimaryArtistOnly.collectAsState()
-            DesktopCardRule()
+            IntegrationRule()
             PanelSwitchRow(
                 title = DesktopStrings["scrobble_tracks", "Scrobble tracks"],
                 subtitle = DesktopStrings["scrobble_tracks_subtitle", "Log plays to your Last.fm timeline"],
                 checked = scrobble,
                 onCheckedChange = DesktopScrobbleSettings::setLastfmScrobble,
             )
-            DesktopCardRule()
+            IntegrationRule()
             PanelSwitchRow(
                 title = DesktopStrings["scrobble_primary_artist_only", "Only scrobble primary artist"],
                 subtitle = DesktopStrings["scrobble_primary_artist_only_subtitle", "Use the first artist when a track credits multiple artists"],
                 checked = primaryOnly,
                 onCheckedChange = DesktopScrobbleSettings::setLastfmPrimaryArtistOnly,
             )
-            DesktopCardRule()
+            IntegrationRule()
             PanelSwitchRow(
                 title = DesktopStrings["now_playing", "Now playing"],
                 subtitle = DesktopStrings["lastfm_now_playing_subtitle", "Update Last.fm with what you are listening to"],
@@ -429,7 +436,7 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
                 15f..120f,
                 20,
             ) { DesktopScrobbleSettings.setMinDuration(it.roundToInt()) }
-            DesktopCardRule()
+            IntegrationRule()
             PanelSliderRow(
                 "Scrobble delay",
                 "How far into a song to scrobble it",
@@ -438,7 +445,7 @@ private fun ScrobblingSection(onOpenLastfm: () -> Unit, onOpenListenBrainz: () -
                 0.1f..1.0f,
                 8,
             ) { DesktopScrobbleSettings.setDelayPercent(it) }
-            DesktopCardRule()
+            IntegrationRule()
             PanelSliderRow(
                 "Maximum delay",
                 "Maximum scrobble delay in seconds",
@@ -588,7 +595,8 @@ private fun PanelGroup(
             )
         }
         Column(
-            if (page && !boxed) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().desktopCardInset(RoundedCornerShape(12.dp)),
+            if (page && !boxed) Modifier.fillMaxWidth().settingsCard()
+            else Modifier.fillMaxWidth().desktopCardInset(RoundedCornerShape(12.dp)),
         ) { content() }
         footer?.let {
             Text(
@@ -610,11 +618,24 @@ private fun PanelSwitchRow(
     enabled: Boolean = true,
     onClick: (() -> Unit)? = null,
 ) {
+    if (LocalDesktopPanelIsPage.current) {
+        if (onClick == null) {
+            DesktopSettingsRow(
+                title, subtitle, enabled = enabled, checked = checked,
+                onClick = { onCheckedChange(!checked) },
+            )
+        } else {
+            DesktopSettingsRow(title, subtitle, enabled = enabled, onClick = onClick) {
+                DesktopSettingsSwitch(checked, onCheckedChange, enabled, label = title)
+            }
+        }
+        return
+    }
     Row(
         Modifier
             .fillMaxWidth()
             .desktopRowClickable(enabled = enabled) { onClick?.invoke() ?: onCheckedChange(!checked) }
-            .padding(horizontal = panelInset(14.dp), vertical = 11.dp),
+            .padding(horizontal = if (LocalDesktopPanelIsPage.current) 16.dp else 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -630,6 +651,10 @@ private fun PanelSwitchRow(
 
 @Composable
 private fun PanelValueRow(title: String, value: String, onClick: () -> Unit) {
+    if (LocalDesktopPanelIsPage.current) {
+        DesktopSettingsRow(title, value = value, onClick = onClick)
+        return
+    }
     Row(
         Modifier.fillMaxWidth().desktopRowClickable(onClick = onClick).padding(horizontal = panelInset(14.dp), vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -641,8 +666,12 @@ private fun PanelValueRow(title: String, value: String, onClick: () -> Unit) {
 
 @Composable
 private fun PanelActionRow(title: String, subtitle: String, destructive: Boolean, onClick: () -> Unit) {
+    if (LocalDesktopPanelIsPage.current && !destructive) {
+        DesktopSettingsRow(title, subtitle, onClick = onClick)
+        return
+    }
     Row(
-        Modifier.fillMaxWidth().desktopRowClickable(onClick = onClick).padding(horizontal = panelInset(14.dp), vertical = 11.dp),
+        Modifier.fillMaxWidth().desktopRowClickable(onClick = onClick).padding(horizontal = if (LocalDesktopPanelIsPage.current) 16.dp else 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
@@ -662,7 +691,7 @@ private fun PanelSliderRow(
     steps: Int,
     onValueChange: (Float) -> Unit,
 ) {
-    Column(Modifier.fillMaxWidth().padding(horizontal = panelInset(14.dp), vertical = 9.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = if (LocalDesktopPanelIsPage.current) 16.dp else 14.dp, vertical = 9.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(title, color = DesktopForeground)
@@ -692,13 +721,13 @@ internal fun DesktopChoiceDialog(
 ) {
     DesktopDialogPanel(onDismiss = onDismiss, maxWidth = 380, popup = true) {
         Column(
-            Modifier.fillMaxWidth().padding(horizontal = 22.dp, vertical = 18.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
+            Modifier.fillMaxWidth().padding(start = 22.dp, end = 22.dp, top = 20.dp, bottom = 14.dp),
+            horizontalAlignment = Alignment.Start,
         ) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = DesktopForeground)
             Text(
                 message,
-                modifier = Modifier.padding(top = 5.dp),
+                modifier = Modifier.padding(top = 6.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = DesktopSecondary,
             )
@@ -726,4 +755,9 @@ internal fun DesktopChoiceDialog(
             TextButton(onClick = onDismiss) { Text(DesktopStrings["cancel", "Cancel"], color = DesktopSecondary) }
         }
     }
+}
+
+@Composable
+private fun IntegrationRule() {
+    if (LocalDesktopPanelIsPage.current) DesktopSettingsDivider() else DesktopCardRule()
 }
