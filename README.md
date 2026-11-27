@@ -1,23 +1,19 @@
 <div align="center">
 
-<img width="1920" height="1080" alt="Dekstop (3)" src="https://github.com/user-attachments/assets/4ae53a09-b7e7-4dc2-b676-d348401ce8ff" />
+<img width="1920" height="1080" alt="BitChord desktop player screenshot" src="https://github.com/user-attachments/assets/4ae53a09-b7e7-4dc2-b676-d348401ce8ff" />
 
 <br>
 <br>
 <br>
 
-<h1><img width="577" height="41"
-     alt="BitChord Desktop Revived - YouTube Music Desktop App for Windows and Linux"
-     src="https://github.com/user-attachments/assets/dc498e1b-f9c7-4d0d-a173-a4669c193e9c" /></h1>
-
+<h1>BitChord Mac</h1>
 
 **A desktop music experience, refined.**
 
-**BitChord Desktop Revived** is a community-maintained BitChord PC and YouTube Music desktop app, continuing development of the original BitChord desktop experience. It brings together a polished interface, immersive playback, and desktop-first controls for Windows and Linux.
-
+**BitChord Mac** is a community-maintained YouTube Music desktop app for macOS, based on BitChord Desktop Revived. It brings together a polished interface, immersive playback, and desktop-first controls.
 
 ![Status](https://img.shields.io/badge/status-revival%20in%20progress-DAA520?style=flat-square)
-![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux-6677AA?style=flat-square)
+![Platforms](https://img.shields.io/badge/platform-macOS-6677AA?style=flat-square)
 [![GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-555555?style=flat-square)](LICENSE)
 
 [**Downloads**](#downloads) · [**Features**](#features) · [**Build**](#building-from-source) · [**Credits**](#credits--upstream)
@@ -25,72 +21,61 @@
 </div>
 
 > [!IMPORTANT]
-> BitChord Desktop Revived is an unofficial fork of the original BitChord desktop app. I maintain and release Revived independently. I don’t collaborate with the teams behind other BitChord forks and am not affiliated with them. The credits in this README acknowledge specific code or ideas used in Revived. You can find builds I publish for Revived on the GitHub Releases page.
-
-
-
+> BitChord Mac is an independent macOS port of [BitChord Desktop Revived](https://github.com/Bntagaaa/BitChord-Desktop-Revived). The credits below acknowledge the upstream projects and contributors.
 
 <div align="center">
 
 <h2 id="features">✨ Highlights</h2>
 
-
-- **Apple Music Experience** - A refined, modern interface featuring elegant frosted surfaces, adaptive blur, a Mica-inspired sidebar, smooth animations, and seamless light/dark themes.
+- **Apple Music Experience** - A refined, modern interface featuring elegant frosted surfaces, adaptive blur, smooth animations, and seamless light/dark themes.
 - **Immersive Music Visuals** - Bring your music to life with Spotify Canvas, Apple Music-inspired animated artist backgrounds, dynamic artwork colors, and beautifully synchronized lyrics.
 - **A More Personal Player** - Enjoy a fullscreen listening experience, a resizable floating player, intuitive playback controls, and seamless queue management.
 - **All Your Music, One Place** - Explore and stream through YouTube Music, access your Spotify library, discover new releases, and enjoy local music and offline downloads.
-- **Powerful Audio Features** - Fine-tune your listening experience with an equalizer, crossfade, experimental Automix, and advanced playback capabilities.
+- **Powerful Audio Features** - Fine-tune your listening experience with an equalizer, crossfade, and advanced playback capabilities.
 - **Connected Listening** - Stay connected with Discord Rich Presence, Last.fm and ListenBrainz scrobbling, and integrated music services.
-- **Made for Desktop** - Designed for Windows and Linux with native media controls, customizable interface options, and keyboard shortcuts like `Ctrl+K` for Quick Search and `Ctrl+/` for the shortcut guide.
+- **Made for Desktop** - Designed for macOS with customizable interface options and in-app keyboard shortcuts for Quick Search and playback.
 </div>
 
 <div align="center">
 
-<h2 id="downloads">Download BitChord Desktop Revived for Windows and Linux</h2>
+<h2 id="downloads">Download BitChord Mac for macOS</h2>
 
-<a href="https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases" target="_blank" rel="noopener noreferrer"><img src="https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/1.9.1/yeyyeyyyyeyey-Artboard-1.svg" alt="Download BitChord Desktop Revived for Windows and Linux" height="55"/></a>
-<a href="https://github.com/Bntagaaa/BitChord-Desktop-Revived/releases" target="_blank" rel="noopener noreferrer"><img src="https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/main/yeyyeyyyyeyey-Artboard-1-copy.svg" alt="Download BitChord Desktop Revived for Windows and Linux" height="55"/></a>
+[![Build macOS](https://img.shields.io/badge/download-macOS%20DMG-6677AA?style=for-the-badge)](https://github.com/ch1tmdgus/BitChord-Mac/actions/workflows/build-macos.yml)
+
+Download the DMG artifact from a successful build. Choose `BitChord-macOS-arm64` for Apple Silicon or `BitChord-macOS-x64` for Intel. If no artifact is available, see the build instructions below.
 
 **Note:** If you're looking for the Android APK, please download it from the [original BitChord repository](https://github.com/kushagrasinghx/BitChord/releases). This fork is focused on the desktop experience.
 
-
 </div>
 
-</div>
 <div align="center">
 
 <h2 id="building-from-source">⚙️ Build from source</h2>
 
 </div>
 
-**Requirements:** Java 21 and Git.
-
-Windows (PowerShell):
-
-```powershell
-.\gradlew.bat :desktopApp:run
-```
-
-Linux:
+**Requirements:** macOS, JDK 21, and Git.
 
 ```bash
 ./gradlew :desktopApp:run
+./gradlew :desktopApp:packageDmg
 ```
 
-</div>
+The DMG is written to `desktopApp/build/compose/binaries/main/dmg/`. See [the macOS build guide](README-macos.md) for GitHub Actions instructions and current limitations.
+
 <div align="center">
 
 <h2 id="credits--upstream">📜 Credits and license</h2>
 
 </div>
 
-**BitChord Desktop — Revived** is an independent, community-maintained continuation of the original BitChord desktop application, built upon the work of the open-source community.
+**BitChord Mac** builds on BitChord Desktop Revived, a community-maintained continuation of the original BitChord desktop application.
 
 ### Original Project
 
 Special thanks to **[@kushagrasinghx](https://github.com/kushagrasinghx)**, the original creator of [BitChord](https://github.com/kushagrasinghx/BitChord), and all upstream contributors for building the foundation that made this project possible.
 
-BitChord Desktop — Revived preserves the original project's core architecture while introducing desktop-focused improvements, the Visual Astra interface, and additional features for Windows and Linux.
+BitChord Mac keeps the upstream playback architecture, desktop improvements, and Visual Astra interface.
 
 ### Acknowledgements
 
@@ -104,7 +89,7 @@ We sincerely appreciate the work and dedication of all developers whose contribu
 
 ### License
 
-BitChord Desktop — Revived is distributed under the **[GNU General Public License v3.0](https://github.com/Bntagaaa/BitChord-Desktop-Revived/blob/main/LICENSE)**.
+BitChord Mac is distributed under the **[GNU General Public License v3.0](LICENSE)**.
 
 This project builds upon GPL-licensed source code from the original BitChord repository and compatible community forks. Original copyright notices and applicable license terms remain in effect.
 
@@ -114,6 +99,6 @@ Third-party libraries, fonts, artwork, and other assets may be subject to their 
 
 ### Disclaimer
 
-BitChord Desktop — Revived is an **unofficial, independent community project**. It is not maintained, sponsored, or endorsed by the original BitChord developers or other referenced community forks.
+BitChord Mac is an **unofficial, independent community project**. It is not maintained, sponsored, or endorsed by the original BitChord developers or other referenced community forks.
 
 This project is not affiliated with or endorsed by **YouTube, Google, Spotify, Apple**, or their respective subsidiaries. All trademarks and service names belong to their respective owners.
