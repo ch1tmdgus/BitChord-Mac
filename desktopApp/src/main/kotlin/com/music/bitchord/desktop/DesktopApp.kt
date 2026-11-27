@@ -6166,7 +6166,7 @@ private fun DesktopSidebar(
     ) {
         Column(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp, bottom = 16.dp),
+            Modifier.fillMaxSize().padding(start = 12.dp, end = 12.dp, top = 16.dp + macTitleBarInset(), bottom = 16.dp),
         ) {
             if (collapsed) {
                 Box(Modifier.fillMaxWidth().height(35.dp), contentAlignment = Alignment.Center) {
@@ -6742,6 +6742,9 @@ internal fun DesktopFrame(
                                 { onSidebarDrawerOpenChange(false) },
                             )
                             Column(Modifier.weight(1f).fillMaxHeight()) {
+                                // macOS: the window buttons overlay the content, so leave their row clear.
+                                val macInset = macTitleBarInset()
+                                if (macInset > 0.dp) Spacer(Modifier.fillMaxWidth().height(macInset))
                                 // Only the legacy top player uses compact chrome at narrow widths.
                                 topBar(narrow)
                                 DesktopPageWithSidePanel(

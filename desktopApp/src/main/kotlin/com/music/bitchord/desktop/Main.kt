@@ -1,6 +1,12 @@
 package com.music.bitchord.desktop
 
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.window.WindowDraggableArea
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.DisposableEffect
 import com.music.bitchord.ui.LocalLyricAnimationAllowed
 import com.music.bitchord.ui.ProvideDesktopPresentationLifecycle
@@ -169,6 +175,16 @@ private fun desktopMain(
         resizable = true,
     ) {
         val composeWindow = window
+        DisposableEffect(composeWindow) {
+            if (DesktopPlatform.isMac) {
+                // No separate title bar: the content runs under it and the window buttons sit
+                // inside the app, tinted by whatever the page paints there.
+                composeWindow.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
+                composeWindow.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
+                composeWindow.rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+            }
+            onDispose { }
+        }
         DisposableEffect(composeWindow) {
             DesktopStartupDiagnostics.once(DesktopStartupDiagnostics.Milestone.WINDOW_CREATED)
             if (DesktopStartupDiagnostics.isEnabled) {
@@ -442,7 +458,14 @@ private fun desktopMain(
         ) {
             ProvideDesktopPresentationLifecycle(visible && !state.isMinimized) {
                 DesktopFlyoutHost {
-                    BitChordDesktopApp(welcomeLaunch, pipHost, playbackService, startup)
+                    Box(Modifier.fillMaxSize()) {
+                        BitChordDesktopApp(welcomeLaunch, pipHost, playbackService, startup)
+                        if (DesktopPlatform.isMac) {
+                            // The title bar is transparent, so the strip behind the window buttons
+                            // is the only place left to grab the window by.
+                            WindowDraggableArea(Modifier.fillMaxWidth().height(macTitleBarInset())) {}
+                        }
+                    }
                 }
             }
         }
