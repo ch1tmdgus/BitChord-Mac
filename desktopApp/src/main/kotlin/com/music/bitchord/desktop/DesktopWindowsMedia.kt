@@ -34,9 +34,9 @@ internal object DesktopWindowsMedia {
     )
 
     private val available: Boolean by lazy {
-        if (!DesktopPlatform.isWindows) return@lazy false
+        if (!DesktopPlatform.isWindows && !DesktopPlatform.isMac) return@lazy false
         runCatching { DesktopAnalysisRuntime.loadNative(LIBRARY) }
-            .onFailure { DesktopTrackLog.log("Windows media controls unavailable: ${it.message}") }
+            .onFailure { DesktopTrackLog.log("System media controls unavailable: ${it.message}") }
             .isSuccess
     }
 
@@ -106,7 +106,8 @@ internal object DesktopWindowsMedia {
         durationMs: Long,
     )
 
-    private const val LIBRARY = "bitchord_smtc"
+    /** Windows: SMTC (`bitchord_smtc.dll`). macOS: Now Playing (`libbitchord_nowplaying.dylib`). */
+    private val LIBRARY: String = if (DesktopPlatform.isMac) "bitchord_nowplaying" else "bitchord_smtc"
 
     private const val BUTTON_PLAY = 0
     private const val BUTTON_PAUSE = 1
