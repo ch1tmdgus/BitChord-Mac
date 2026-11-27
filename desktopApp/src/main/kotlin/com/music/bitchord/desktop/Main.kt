@@ -353,6 +353,13 @@ private fun desktopMain(
             if (DesktopPlatform.isWindows) {
                 DesktopWindowsCaptionAppearance.setDarkMode(isDarkTheme)
             }
+            if (DesktopPlatform.isMac) {
+                // Make the native macOS title bar follow the in-app theme.
+                composeWindow.rootPane.putClientProperty(
+                    "apple.awt.windowAppearance",
+                    if (isDarkTheme) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua",
+                )
+            }
         }
         DisposableEffect(composeWindow) {
             onDispose { DesktopWindowsCaptionAppearance.detach(composeWindow) }
