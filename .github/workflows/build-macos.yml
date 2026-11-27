@@ -51,6 +51,18 @@ jobs:
           done
           iconutil -c icns "$set_dir" -o "$RUNNER_TEMP/AppIcon.icns"
 
+      - name: Build Now Playing library (media keys / Control Center)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p desktopApp/src/main/resources/native
+          clang++ -std=c++17 -O2 -fobjc-arc -dynamiclib -mmacosx-version-min=11.0 \
+            -I"$JAVA_HOME/include" -I"$JAVA_HOME/include/darwin" \
+            -framework Foundation -framework AppKit -framework MediaPlayer \
+            -o desktopApp/src/main/resources/native/libbitchord_nowplaying.dylib \
+            desktopApp/native/nowplaying/nowplaying_mac.mm
+          file desktopApp/src/main/resources/native/libbitchord_nowplaying.dylib
+
       - name: Package dmg
         shell: bash
         run: |
