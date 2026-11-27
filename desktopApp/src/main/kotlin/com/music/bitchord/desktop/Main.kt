@@ -368,12 +368,13 @@ private fun desktopMain(
                 DesktopWindowBackdrop.apply()
                 DesktopStartupDiagnostics.record(DesktopStartupDiagnostics.Milestone.WINDOW_CREATED)
             } else {
-                // Linux AWT/JVM already reports window dimensions in scaled logical units.
-                // Applying the graphics transform again doubles HiDPI/fractional scaling
-                // under X11/XWayland (notably GNOME on Wayland). Keep macOS unchanged.
+                // Linux and macOS AWT/JVM already report window dimensions in scaled logical
+                // units. Applying the graphics transform again doubles HiDPI/fractional scaling
+                // (on a 2x Retina Mac the minimum size became 1800x1200 and the window could
+                // not be made smaller).
                 val transform = composeWindow.graphicsConfiguration.defaultTransform
-                val scaleX = if (DesktopPlatform.isLinux) 1.0 else transform.scaleX
-                val scaleY = if (DesktopPlatform.isLinux) 1.0 else transform.scaleY
+                val scaleX = if (DesktopPlatform.isLinux || DesktopPlatform.isMac) 1.0 else transform.scaleX
+                val scaleY = if (DesktopPlatform.isLinux || DesktopPlatform.isMac) 1.0 else transform.scaleY
                 composeWindow.minimumSize = Dimension(
                     (DesktopMainWindowGeometry.MIN_WIDTH * scaleX).roundToInt(),
                     (DesktopMainWindowGeometry.MIN_HEIGHT * scaleY).roundToInt(),
